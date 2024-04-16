@@ -1,20 +1,33 @@
-# Manhattan Simulator
+# Graph SLAM Simulator
 
-This is a repository for generating random Manhattan-World-style 2D experiments. 
+This is a repository for generating random single- and multi-robot graph SLAM experiments. The simulator makes the distinction between robot states and map features to enable *separability* in multi-robot SLAM system global cost functions, and logs the resulting graph to [PyFactorGraph](https://github.com/MarineRoboticsGroup/PyFactorGraph) format. The simulator focuses on the underlying graphical structure of the RA-SLAM problem, and assumes measurement models are consistent with those presented in the paper:
 
-While custom measurements are easy to add, currently supported measurement types include:
+```bibtex
+@article{papalia2023certifiably,
+  title={Certifiably Correct Range-Aided SLAM},
+  author={Papalia, Alan and Fishberg, Andrew and O'Neill, Brendan W. and How, Jonathan P. and Rosen, David M. and Leonard, John J.},
+  journal={arXiv preprint arXiv:2302.11614},
+  year={2023}
+}
+```
 
-- robot odometry measurements
-- pose-pose and pose-landmark loop closures (measurements are SE(2) measurements)
-- pose-pose and pose-landmark range measurements
-- ambiguous loop closures and ambiguous range measurements (the measurements above, but with uncertainty on the data association)
+The simulator supports the generation of i) random Manhattan worlds and ii) controlled experiments with parameterized robot navigation and map feature placement. Supported measurement types include:
+- Pose priors in SE(2) and SE(3)
+- Relative SE(2) and SE(3) measurements (pose-pose and pose-point) for robot odometry and loop closures
+- Range measurements in 2D and 3D for pose-pose, pose-point, and point-point pairs
 
 ## Getting Started
 
-Please look in our `example/` directory to see how to use this module to generate experiments.
+### Example
 
-Our Manhattan Simulator depends on our [PyFactorGraph](https://github.com/MarineRoboticsGroup/PyFactorGraph/) module, so
-you will need to install PyFactorGraph via:
+Run the example:
+
+```bash
+cd ~/graph_slam_simulator/examples
+python3 example.py
+```
+
+### Dependencies
 
 ```bash
 git clone git@github.com:MarineRoboticsGroup/PyFactorGraph.git
@@ -24,32 +37,27 @@ pip install .
 
 ## Contributing
 
-This repo is set up so that contributions will have consistent style and pass
-some static type checks. The code styling is enforced through `black`, and helps
-to improve the cleanliness, consistency, and readability of commits.
+If you want to contribute a new feature to this package please read this brief section.
 
-The static type checking is performed by `mypy` and helps to prevent bugs by
-ensuring that object type expectations are being maintained. In addition, it
-requires thoughtful type-annotation to improve the readability and
-maintainability of the code in the future.
+### Code Standards
 
-We run these through both `Github Actions` and the `pre-commit` framework, which
-allow us to check our code before committing and then perform some quality tests
-on the code once it has been committed. `Github Actions` does not require any
-further setup to be used, the tests will be run when the code is pushed.
+Any necessary coding standards are enforced through `pre-commit`. This will run a series of `hooks` when attempting to commit code to this repo. Additionally, we run a `pre-commit` hook to auto-generate the documentation of this library to make sure it is always up to date.
 
-The [`pre-commit`](https://pre-commit.com/#intro) framework lets you make sure
-the tests will pass before pushing the code. To set it up and use it all you
-need to do is run the following commands:
+To set up `pre-commit`
 
-``` Bash
-# install pre-commit
+```bash
+cd ~/PyFactorGraph
 pip3 install pre-commit
-pre-commit install # must run this command in the root of this repo
+pre-commit install
 ```
 
-Now, when you try to make a commit, pre-commit will run a series of tests that
-must be passed. In the event that the code can be easily changed, mostly in the
-case of reformatting, `pre-commit` will often make the change for you. From here
-you can just run `git diff` to see the changes made, verify they're correct, add
-the changes, and attempt the recommit.
+### Testing
+
+If you want to develop this package and test it from an external package you can also install via
+
+```bash
+cd ~/manhattan-world-sim
+pip3 install -e .
+```
+
+The `-e` flag will make sure that any changes you make here are automatically translated to the external library you are working in.
