@@ -23,15 +23,23 @@ The simulator supports the generation of i) random Manhattan worlds and ii) cont
 Run the example:
 
 ```bash
-cd ~/graph_slam_simulator/examples
+cd ~/manhattan-world-sim/examples
 python3 example.py
 ```
 
 ### Dependencies
 
+PyFactorGraph:
 ```bash
 git clone git@github.com:MarineRoboticsGroup/PyFactorGraph.git
 cd PyFactorGraph
+pip install .
+```
+
+liegroups:
+```bash
+git clone git@github.com:utiasSTARS/liegroups.git
+cd liegroups
 pip install .
 ```
 
@@ -46,7 +54,7 @@ Any necessary coding standards are enforced through `pre-commit`. This will run 
 To set up `pre-commit`
 
 ```bash
-cd ~/PyFactorGraph
+cd ~/manhattan-world-sim
 pip3 install pre-commit
 pre-commit install
 ```
