@@ -19,6 +19,24 @@ class DIM(Enum):
     THREE = 3
 
 
+def check_compatible_types(self, other):
+    assert (
+        (type(self), type(other)) == (SE2Pose, Point2)
+        or (SE2Pose, Point3)
+        or (Rot2, Point2)
+        or (Rot3, Point3)
+    )
+
+
+def check_same_types(self, other):
+    assert (
+        (type(self), type(other)) == (SE2Pose, SE2Pose)
+        or (SE2Pose, SE2Pose)
+        or (Rot2, Rot2)
+        or (Rot3, Rot3)
+    )
+
+
 def none_to_zero(x: Optional[float]) -> float:
     """
     Converts a None value to 0.0 if x is None. Otherwise, returns x.
@@ -30,19 +48,6 @@ def none_to_zero(x: Optional[float]) -> float:
         float: The converted value.
     """
     return 0.0 if x is None else x
-
-
-def theta_to_pipi(theta: float) -> float:
-    """
-    Wraps an angle in radians to the range [-pi, pi].
-
-    Parameters:
-        theta (float): The angle in radians.
-
-    Returns:
-        float: The angle in the range [-pi, pi].
-    """
-    return (theta + np.pi) % _TWO_PI - np.pi
 
 
 class Point(ABC):
@@ -365,6 +370,7 @@ class Rot(ABC):
         assert isinstance(local_frame, str)
         assert isinstance(base_frame, str)
 
+        self._SO = None
         self._local_frame = local_frame
         self._base_frame = base_frame
 
@@ -391,18 +397,21 @@ class Rot(ABC):
         return self._base_frame
 
     @property
+    def lie_group(self):
+        return self._SO
+
+    @property
     @abstractmethod
-    def degrees(self) -> Union[float, Tuple[float, float, float]]:
+    def angles(self):
         """
-        Returns the angular representation of the rotation in degrees. For 2D rotations, theta is returned. For 3D rotations, (roll, pitch, yaw) is returned.
+        Returns the angular representation of the rotation in radians. For 2D rotations, theta is returned. For 3D rotations, (roll, pitch, yaw) is returned.
 
         Returns:
-            float: angle(s) in degrees.
+         Union[float, Tuple[float, float, float]]: angles representing the Rot object.
         """
         pass
 
     @property
-    @abstractmethod
     def matrix(self) -> np.ndarray:
         """
         Returns the matrix representation of the rotation.
@@ -410,10 +419,9 @@ class Rot(ABC):
         Returns:
           np.ndarray: A 2D array representing the rotation matrix.
         """
-        pass
+        return self.lie_group.as_matrix()
 
     @property
-    @abstractmethod
     def log_map(self) -> np.ndarray:
         """
         Return the log map of the rotation.
@@ -421,21 +429,21 @@ class Rot(ABC):
         Returns:
             np.ndarray: the log map of the rotation.
         """
-        pass
+        return self.lie_group.log()
 
     @classmethod
     @abstractmethod
-    def by_degrees(cls, degrees, local_frame: str, base_frame: str):
+    def by_array(cls, angles: np.array, local_frame: str, base_frame: str):
         """
-        Creates a Rot object from degrees with a specified local and base frame. For 2D rotations, theta must be in degrees. For 3D rotations, (roll, pitch, yaw) must be in degrees.
+        Creates a Rot object from an array of angles with a specified local and base frame.
 
         Args:
-            degrees (float): the angle(s) in degrees respresenting the rotation.
-            local_frame (str): the local frame of the rotation.
-            base_frame (str): the base frame of the rotation.
+            angles (np.array): An array of angles representing the rotation.
+            local_frame (str): The local frame of the rotation.
+            base_frame (str): The base frame of the rotation.
 
         Returns:
-            Rot: the Rot object.
+            Rot: The Rot object.
         """
         pass
 
@@ -457,12 +465,12 @@ class Rot(ABC):
 
     @classmethod
     @abstractmethod
-    def by_exp_map(cls, vector: np.ndarray, local_frame: str, base_frame: str):
+    def by_exp_map(cls, vector: np.array, local_frame: str, base_frame: str):
         """
         Creates a Rot object from a rotation vector with a specified local and base frame.
 
         Args:
-            vector (np.ndarray): the rotation vector.
+            vector (np.array): the rotation vector.
             local_frame (str): the local frame of the rotation.
             base_frame (str): the base frame of the rotation.
 
@@ -502,7 +510,9 @@ class Rot(ABC):
         Returns:
             Point: the rotated point.
         """
-        pass
+        check_compatible_types(self, local_pt)
+        assert self.local_frame == local_pt.frame
+        return self * local_pt
 
     @abstractmethod
     def unrotate_point(self, base_frame_pt):
@@ -515,7 +525,9 @@ class Rot(ABC):
         Returns:
             Point: the point in the local frame.
         """
-        pass
+        check_compatible_types(self, base_frame_pt)
+        assert self.base_frame == base_frame_pt.frame
+        return self.copyInverse() * base_frame_pt
 
     @abstractmethod
     def bearing_to_local_frame_point(
@@ -555,13 +567,22 @@ class Rot(ABC):
     def __str__(self) -> str:
         pass
 
-    @abstractmethod
     def __eq__(self, other: object) -> bool:
-        pass
+        if isinstance(other, type(self)):
+            same_frames = (
+                self.local_frame == other.local_frame
+                and self.base_frame == other.base_frame
+            )
+            angles_close = np.allclose(
+                np.array(self.angles),
+                np.array(other.angles),
+                _ROTATION_TOLERANCE,
+            )
+            return same_frames and angles_close
+        return False
 
-    @abstractmethod
     def __hash__(self) -> int:
-        pass
+        return hash((self.lie_group, self.local_frame, self.base_frame))
 
 
 class Rot2(Rot):
@@ -576,57 +597,35 @@ class Rot2(Rot):
             base_frame (str): the base frame of the rotation.
         """
         assert isinstance(theta, float)
+        self._SO = SO2.from_angle(none_to_zero(theta))
 
-        # enforce _theta in [-pi, pi] as a state
-        self._theta = theta_to_pipi(none_to_zero(theta))
+    @property
+    def angles(self) -> float:
+        return self.lie_group.to_angle()
 
     @property
     def theta(self) -> float:
-        return self._theta
+        return self.angles
 
     @theta.setter
     def theta(self, theta: float):
         assert np.isscalar(theta)
-        self._theta = theta
-
-    @property
-    def cos(self) -> float:
-        return math.cos(self.theta)
-
-    @property
-    def sin(self) -> float:
-        return math.sin(self.theta)
-
-    @property
-    def degrees(self) -> float:
-        return self.theta * _RAD_TO_DEG_FACTOR
-
-    @property
-    def matrix(self) -> np.ndarray:
-        return np.array([[self.cos, -self.sin], [self.sin, self.cos]])
-
-    @property
-    def log_map(self) -> np.ndarray:
-        return np.array([self.theta])
+        self._SO = SO2.from_angle(theta)
 
     @classmethod
-    def by_degrees(cls, degrees: float, local_frame: str, base_frame: str) -> "Rot2":
-        theta = none_to_zero(degrees) * _DEG_TO_RAD_FACTOR
+    def by_array(cls, angles: np.array, local_frame: str, base_frame: str) -> "Rot2":
+        theta = none_to_zero(angles[0])
         return cls(theta, local_frame, base_frame)
 
     @classmethod
     def by_matrix(cls, matrix: np.ndarray, local_frame: str, base_frame: str) -> "Rot2":
         assert isinstance(matrix, np.ndarray)
-        assert matrix.shape == (2, 2)
-        assert matrix.dtype == np.float64
-        return cls(np.arctan2(matrix[1, 0], matrix[0, 0]), local_frame, base_frame)
+        theta = SO2.from_matrix(matrix).to_angle()
+        return cls(theta, local_frame, base_frame)
 
     @classmethod
-    def by_exp_map(
-        cls, vector: np.ndarray, local_frame: str, base_frame: str
-    ) -> "Rot2":
-        assert isinstance(vector, np.ndarray)
-        assert vector.shape == (1, 1)
+    def by_exp_map(cls, vector: np.array, local_frame: str, base_frame: str) -> "Rot2":
+        assert isinstance(vector, np.array)
         assert len(vector) == 1
         return cls(vector[0], local_frame, base_frame)
 
@@ -666,32 +665,19 @@ class Rot2(Rot):
         pass
 
     def __mul__(self, other: Union["Rot2", Point2]) -> Union["Rot2", Point2]:
+        assert isinstance(other, (Rot2, Point2))
         if isinstance(other, Rot2):
             assert self.local_frame == other.base_frame
-            return Rot2(self.theta + other.theta, self.local_frame, other.base_frame)
-        elif isinstance(other, Point2):
+            theta = self.lie_group.dot(other.lie_group).to_angle()
+            return Rot2(theta, self.local_frame, other.base_frame)
+        if isinstance(other, Point2):
             assert self.local_frame == other.frame
-            x = self.cos * other.x - self.sin * other.y
-            y = self.sin * other.x + self.cos * other.y
+            point_rotated = self.lie_group.dot(other.array)
+            x, y = point_rotated[0], point_rotated[1]
             return Point2(x, y, self.base_frame)
-        else:
-            raise ValueError("Not a Point2 or Rot2 type to multiply.")
 
     def __str__(self) -> str:
         return f"Rot2[theta: {self.theta:.3f}, local_frame: {self.local_frame}, base_frame: {self.base_frame}]"
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, Rot2):
-            same_frames = (
-                self.local_frame == other.local_frame
-                and self.base_frame == other.base_frame
-            )
-            angle_similar = abs(self.theta - other.theta) < 1e-8
-            return same_frames and angle_similar
-        return False
-
-    def __hash__(self) -> int:
-        return hash((self.theta, self.local_frame, self.base_frame))
 
 
 class Rot3(Rot):
@@ -713,39 +699,37 @@ class Rot3(Rot):
         assert isinstance(roll, float)
         assert isinstance(pitch, float)
         assert isinstance(yaw, float)
-        self._SO3 = SO3.from_rpy(roll, pitch, yaw)
+        self._SO = SO3.from_rpy(roll, pitch, yaw)
 
     @property
     def roll(self) -> float:
-        return self._SO3.to_rpy()[0]
+        return self.lie_group.to_rpy()[0]
 
     @property
     def pitch(self) -> float:
-        return self._SO3.to_rpy()[1]
+        return self.lie_group.to_rpy()[1]
 
     @property
     def yaw(self) -> float:
-        return self._SO3.to_rpy()[2]
+        return self.lie_group.to_rpy()[2]
 
     @property
-    def degrees(self) -> Tuple[float, float, float]:
-        return self._SO3.to_rpy() * _RAD_TO_DEG_FACTOR
+    def angles(self) -> Tuple[float, float, float]:
+        return (self.roll, self.pitch, self.yaw)
 
     @property
     def matrix(self) -> np.ndarray:
-        return self._SO3.as_matrix()
+        return self.lie_group.as_matrix()
 
     @property
     def log_map(self) -> np.ndarray:
-        return self._SO3.log()
+        return self.lie_group.log()
 
     @classmethod
-    def by_degrees(
-        cls, degrees: Tuple[float, float, float], local_frame: str, base_frame: str
-    ) -> "Rot3":
-        roll = none_to_zero(degrees[0]) * _DEG_TO_RAD_FACTOR
-        pitch = none_to_zero(degrees[1]) * _DEG_TO_RAD_FACTOR
-        yaw = none_to_zero(degrees[2]) * _DEG_TO_RAD_FACTOR
+    def by_array(cls, angles: np.array, local_frame: str, base_frame: str) -> "Rot3":
+        roll = none_to_zero(angles[0])
+        pitch = none_to_zero(angles[1])
+        yaw = none_to_zero(angles[2])
         return cls(roll, pitch, yaw, local_frame, base_frame)
 
     @classmethod
@@ -755,10 +739,9 @@ class Rot3(Rot):
         return cls(roll, pitch, yaw, local_frame, base_frame)
 
     @classmethod
-    def by_exp_map(
-        cls, vector: np.ndarray, local_frame: str, base_frame: str
-    ) -> "Rot3":
-        assert isinstance(vector, np.ndarray)
+    def by_exp_map(cls, vector: np.array, local_frame: str, base_frame: str) -> "Rot3":
+        assert isinstance(vector, np.array)
+        assert len(vector) == 3
         roll, pitch, yaw = SO3.exp(vector).to_rpy()
         return cls(roll, pitch, yaw, local_frame, base_frame)
 
@@ -766,7 +749,7 @@ class Rot3(Rot):
         return Rot3(self.roll, self.pitch, self.yaw, self.local_frame, self.base_frame)
 
     def copyInverse(self) -> "Rot3":
-        roll, pitch, yaw = self._SO3.inv().to_rpy()
+        roll, pitch, yaw = self.lie_group.inv().to_rpy()
         return Rot3(roll, pitch, yaw, self.base_frame, self.local_frame)
 
     def rotate_point(self, local_pt: Point3) -> Point3:
@@ -799,39 +782,19 @@ class Rot3(Rot):
         pass
 
     def __mul__(self, other: Union["Rot3", Point3]) -> Union["Rot3", Point3]:
+        assert isinstance(other, (Rot3, Point3))
         if isinstance(other, Rot3):
             assert self.local_frame == other.base_frame
-            roll, pitch, yaw = self._SO3.dot(other._SO3).to_rpy()
+            roll, pitch, yaw = self.lie_group.dot(other.lie_group).to_rpy()
             return Rot3(roll, pitch, yaw, self.local_frame, other.base_frame)
-        elif isinstance(other, Point3):
+        if isinstance(other, Point3):
             assert self.local_frame == other.frame
-            rotated_point = self._SO3.as_matrix() * other.array()
-            x, y, z = rotated_point[0], rotated_point[1], rotated_point[2]
+            point_rotated = self.lie_group.dot(other.array)
+            x, y, z = point_rotated[0], point_rotated[1], point_rotated[2]
             return Point3(x, y, z, self.base_frame)
-        else:
-            raise ValueError("Not a Point3 or Rot3 type to multiply.")
 
     def __str__(self) -> str:
         return f"Rot3[roll: {self.roll:.3f}, pitch: {self.pitch:.3f}, yaw: {self.yaw:.3f}, local_frame: {self.local_frame}, base_frame: {self.base_frame}]"
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, Rot3):
-            same_frames = (
-                self.local_frame == other.local_frame
-                and self.base_frame == other.base_frame
-            )
-            angle_similar = np.allclose(
-                np.array(self._SO3.to_rpy()),
-                np.array(other._SO3.to_rpy()),
-                _ROTATION_TOLERANCE,
-            )
-            return same_frames and angle_similar
-        return False
-
-    def __hash__(self) -> int:
-        return hash(
-            (self.roll, self.pitch, self.yaw, self.local_frame, self.base_frame)
-        )
 
 
 class SEPose(ABC):
@@ -847,6 +810,7 @@ class SEPose(ABC):
         assert isinstance(base_frame, str)
         assert not local_frame == base_frame
 
+        self._SE = None
         self._local_frame = local_frame
         self._base_frame = base_frame
 
@@ -875,6 +839,10 @@ class SEPose(ABC):
         return np.linalg.norm(T1 - T2, ord="fro")
 
     @property
+    def se_group(self):
+        return self._SE
+
+    @property
     def local_frame(self) -> str:
         return self._local_frame
 
@@ -884,16 +852,27 @@ class SEPose(ABC):
 
     @property
     @abstractmethod
-    def rotation(self):
+    def rot(self):
+        """
+        Returns a Rot object representing the rotation of this pose.
+
+        Returns:
+          Rot: The Rot object.
+        """
         pass
 
     @property
     @abstractmethod
-    def translation(self):
+    def point(self):
+        """
+        Returns a Point object representing the translation of this pose.
+
+        Returns:
+          Point: The Point object.
+        """
         pass
 
     @property
-    @abstractmethod
     def matrix(self) -> np.ndarray:
         """
         Returns the matrix representation of the pose object.
@@ -901,11 +880,11 @@ class SEPose(ABC):
         Returns:
             np.ndarray: The matrix representation of the pose object.
         """
-        pass
+        return self.se_group.as_matrix()
 
     @property
     @abstractmethod
-    def array(self) -> np.ndarray:
+    def array(self) -> np.array:
         """
         Returns the array representation of the pose object.
 
@@ -915,7 +894,6 @@ class SEPose(ABC):
         pass
 
     @property
-    @abstractmethod
     def log_map(self) -> np.ndarray:
         """
         Computes the logarithmic map of the current pose object.
@@ -923,32 +901,22 @@ class SEPose(ABC):
         Returns:
             np.ndarray: The logarithmic map of the current pose object.
         """
-        pass
-
-    @property
-    def grad_x_logmap(self) -> np.ndarray:
-        """
-        Computes the gradient of the logarithmic map with respect to the pose object.
-
-        Returns:
-            np.ndarray: The gradient of the logarithmic map with respect to the pose object.
-        """
-        pass
+        return self.se_group.log()
 
     @classmethod
     @abstractmethod
-    def by_point_and_rotation(cls, point, rotation, local_frame: str, base_frame: str):
+    def by_point_and_rotation(cls, point, rot, local_frame: str, base_frame: str):
         """
-        Creates a pose object from point and rotation objects.
+        Creates a pose object from Point and Rot objects.
 
         Args:
-            point (Point): The point object.
-            rotation (Rot): The rotation object.
+            point (Point): The Point object.
+            rot (Rot): The Rot object.
             local_frame (str): The local frame.
             base_frame (str): The base frame.
 
         Returns:
-            SEPose: the pose object corresponding to the input point and rotation objects.
+            SEPose: The Pose object.
         """
         pass
 
@@ -959,28 +927,28 @@ class SEPose(ABC):
         Creates a pose object from a homogenous transformation matrix.
 
         Args:
-            matrix: the homogenous transformation matrix.
-            local_frame: the local frame of the matrix.
-            base_frame: the base frame of the matrix.
+            matrix (np.ndarray): the homogenous transformation matrix.
+            local_frame (str): the local frame of the matrix.
+            base_frame (str): the base frame of the matrix.
 
         Returns:
-            SEPose: the SEPose object corresponding to the input matrix.
+            SEPose: The Pose object.
         """
         pass
 
     @classmethod
     @abstractmethod
-    def by_exp_map(cls, vector: np.ndarray, local_frame: str, base_frame: str):
+    def by_exp_map(cls, vector: np.array, local_frame: str, base_frame: str):
         """
         Creates a pose object from an exponential map vector.
 
         Args:
-            vector: the exponential map vector.
-            local_frame: the local frame of the exponential map vector.
-            base_frame: the base frame of the exponential map vector.
+            vector (np.array): the exponential map vector.
+            local_frame (str): the local frame of the exponential map vector.
+            base_frame (str): the base frame of the exponential map vector.
 
         Returns:
-            SEPose: the SEPose object corresponding to the input vector.
+            SEPose: The Pose object.
         """
         pass
 
@@ -990,7 +958,7 @@ class SEPose(ABC):
         Returns deep copy of this pose.
 
         Returns:
-            SEPose: a deep copy of this pose.
+            SEPose: A deep copy of this pose.
         """
         pass
 
@@ -1000,16 +968,15 @@ class SEPose(ABC):
         Returns deep copy of the inverse of this pose.
 
         Returns:
-            SEPose: a deep copy of the inverse of this pose.
+            SEPose: A deep copy of the inverse of this pose.
         """
         pass
 
-    @abstractmethod
     def range_and_bearing_to_point(
-        self, point
+        self, point: Point
     ) -> Union[Tuple[float, float], Tuple[float, Tuple[float, float]]]:
         """
-        Returns the range and bearing from this pose to the point.
+        Returns the range and bearing from this pose to the point. For the 2D case, bearing is measured from the (x,y) coordinate of the point to give a single bearing. For the 3D case, bearing is measured from the (x,y) and (x,z) coordinates of the point to give two bearings.
 
         Args:
             point (Point): the point to measure to.
@@ -1017,10 +984,13 @@ class SEPose(ABC):
         Returns:
             Union[Tuple[float, float], Tuple[float, Tuple[float, float]]]: (range, bearing).
         """
-        pass
+        check_compatible_types(self, point)
+        diff = point - self.point
+        dist = diff.norm
+        bearing = self.rot.bearing_to_base_frame_point(diff)
+        return dist, bearing
 
-    @abstractmethod
-    def transform_to(self, other):
+    def transform_to(self, other: "SEPose") -> "SEPose":
         """
         Returns the coordinate frame of the other pose in the coordinate frame of this pose.
 
@@ -1030,10 +1000,12 @@ class SEPose(ABC):
         Returns:
             SEPose: the coordinate frame of this pose with respect to the given pose.
         """
-        pass
+        check_same_types(self, other)
+        assert self.base_frame == other.base_frame
+        assert not self.local_frame == other.local_frame
+        return self.copyInverse() * other
 
-    @abstractmethod
-    def transform_local_point_to_base(self, local_point):
+    def transform_local_point_to_base(self, local_point: Point) -> Point:
         """
         Returns a point expressed in local frame of self in the base frame of self.
 
@@ -1043,10 +1015,10 @@ class SEPose(ABC):
         Returns:
             Point: a point expressed in the base frame of self.
         """
-        pass
+        check_compatible_types(self, local_point)
+        return self * local_point
 
-    @abstractmethod
-    def transform_base_point_to_local(self, base_point):
+    def transform_base_point_to_local(self, base_point: Point) -> Point:
         """
         Returns a point expressed in base frame of self in the local frame of self.
 
@@ -1056,10 +1028,10 @@ class SEPose(ABC):
         Returns:
             Point: a point expressed in the local frame of self.
         """
-        pass
+        check_compatible_types(self, base_point)
+        return self.copyInverse() * base_point
 
-    @abstractmethod
-    def distance_to_pose(self, other) -> float:
+    def distance_to_pose(self, other: "SEPose") -> float:
         """
         Returns the distance between this pose and another pose.
 
@@ -1069,27 +1041,56 @@ class SEPose(ABC):
         Returns:
             float: the distance between this pose and the other pose.
         """
-        pass
+        check_same_types(self, other)
+        cur_position = self.point
+        other_position = other.point
+        assert cur_position.frame == other_position.frame
 
-    @abstractmethod
+        dist = cur_position.distance(other_position)
+        assert isinstance(dist, float)
+        return dist
+
     def __mul__(self, other):
-        pass
+        check_compatible_types(self, other)
+        if isinstance(other, SEPose):
+            assert self.local_frame == other.base_frame
+            T = self.se_group.dot(other.se_group).as_matrix()
+            return self.__class__.by_matrix(
+                matrix=T, local_frame=other.local_frame, base_frame=self.base_frame
+            )
+        if isinstance(other, Point):
+            assert self.local_frame == other.frame
+            return self.rot * other + self.point
 
-    @abstractmethod
     def __imul__(self, other):
-        pass
+        check_same_types(self, other)
+        self._SE = self.se_group.dot(other.se_group)
+        self._local_frame = other.local_frame
 
     @abstractmethod
     def __str__(self) -> str:
         pass
 
-    @abstractmethod
     def __eq__(self, other: object) -> bool:
-        pass
+        if isinstance(other, SEPose):
+            rotation_close = np.allclose(
+                np.array(self.rot.angles),
+                np.array(other.rot.angles),
+                _ROTATION_TOLERANCE,
+            )
+            translation_close = np.allclose(
+                self.point.array, other.point.array, _TRANSLATION_TOLERANCE
+            )
+            return (
+                rotation_close
+                and translation_close
+                and self._local_frame == other.local_frame
+                and self._base_frame == other.base_frame
+            )
+        return False
 
-    @abstractmethod
-    def __hash__(self) -> int:
-        pass
+    def __hash__(self):
+        return hash((self.se_group, self._local_frame, self._base_frame))
 
 
 class SE2Pose(SEPose):
@@ -1111,96 +1112,49 @@ class SE2Pose(SEPose):
         assert isinstance(y, float)
         assert isinstance(theta, float)
 
-        self._point = Point2(x=x, y=y, frame=base_frame)
-        self._rot = Rot2(theta=theta, local_frame=local_frame, base_frame=base_frame)
+        # create homogeneous transformation matrix
+        R = SO2.from_angle(theta)
+        t = np.array([x, y])
+        T = np.eye(3)
+        T[:2, :2] = R.as_matrix()
+        T[:2, 2] = t
+
+        # class attributes
+        self._SE = SE2.from_matrix(T)
         self._local_frame = local_frame
         self._base_frame = base_frame
 
     @property
-    def theta(self):
-        return self._rot.theta
+    def theta(self) -> float:
+        return self.se_group.rot.to_angle()
 
     @property
-    def x(self):
-        return self._point.x
+    def x(self) -> float:
+        return self.se_group.trans[0]
 
     @property
-    def y(self):
-        return self._point.y
+    def y(self) -> float:
+        return self.se_group.trans[1]
 
     @property
-    def rotation(self):
-        return self._rot
+    def rot(self) -> Rot2:
+        return Rot2(self.theta, self.local_frame, self.base_frame)
 
     @property
-    def translation(self):
-        return self._point
+    def point(self) -> Point2:
+        return Point2(self.x, self.y, self.base_frame)
 
     @property
-    def matrix(self):
-        r_c = self._rot.cos
-        r_s = self._rot.sin
-        x = self._point.x
-        y = self._point.y
-        return np.array([[r_c, -r_s, x], [r_s, r_c, y], [0, 0, 1]])
-
-    @property
-    def array(self):
+    def array(self) -> np.array:
         return np.array([self.x, self.y, self.theta])
-
-    @property
-    def log_map(self) -> np.ndarray:
-        r = self._rot
-        t = self._point
-        w = r.theta
-        if abs(w) < 1e-10:
-            return np.array([t.x, t.y, w])
-        else:
-            c_1 = r.cos - 1.0
-            s = r.sin
-            det = c_1 * c_1 + s * s
-            rot_pi_2 = Rot2(np.pi / 2.0, self.local_frame, self.base_frame)
-            p = rot_pi_2 * (r.unrotate_point(t) - t)
-            v = (w / det) * p
-            return np.array([v.x, v.y, w])
-
-    @property
-    def grad_x_logmap(self) -> np.ndarray:
-        if abs(self.theta) < 1e-10:
-            return np.identity(3)
-        else:
-            logmap_x, logmap_y, logmap_th = self.log_map()
-            th_2 = logmap_th / 2.0
-            diag1 = th_2 * np.sin(logmap_th) / (1.0 - np.cos(logmap_th))
-            return np.array(
-                [
-                    [
-                        diag1,
-                        th_2,
-                        (
-                            logmap_x / logmap_th
-                            + th_2 * (self.x / (np.cos(logmap_th) - 1))
-                        ),
-                    ],
-                    [
-                        -th_2,
-                        diag1,
-                        (
-                            logmap_y / logmap_th
-                            + th_2 * (self.y / (np.cos(logmap_th) - 1))
-                        ),
-                    ],
-                    [0.0, 0.0, 1.0],
-                ]
-            )
 
     @classmethod
     def by_point_and_rotation(
-        cls, point: Point2, rotation: Rot2, local_frame: str, base_frame: str
+        cls, point: Point2, rot: Rot2, local_frame: str, base_frame: str
     ) -> "SE2Pose":
         assert isinstance(point, Point2)
-        assert isinstance(rotation, Rot2)
-        return cls(point.x, point.y, rotation.theta, local_frame, base_frame)
+        assert isinstance(rot, Rot2)
+        return cls(point.x, point.y, rot.theta, local_frame, base_frame)
 
     @classmethod
     def by_matrix(
@@ -1208,35 +1162,20 @@ class SE2Pose(SEPose):
     ) -> "SE2Pose":
         assert isinstance(matrix, np.ndarray)
         point = Point2.by_array(matrix[:2, 2], local_frame)
-        rotation = Rot2.by_matrix(matrix[:2, :2], local_frame, base_frame)
-        return SE2Pose.by_point_and_rotation(point, rotation, local_frame, base_frame)
+        rot = Rot2.by_matrix(matrix[:2, :2], local_frame, base_frame)
+        return SE2Pose.by_point_and_rotation(point, rot, local_frame, base_frame)
 
     @classmethod
     def by_exp_map(
-        cls, vector: np.ndarray, local_frame: str, base_frame: str
+        cls, vector: np.array, local_frame: str, base_frame: str
     ) -> "SE2Pose":
-        assert isinstance(vector, np.ndarray)
+        assert isinstance(vector, np.array)
         assert len(vector) == 3
-        w = vector[2]
-        if abs(w) < 1e-10:
-            return SE2Pose(vector[0], vector[1], w, local_frame, base_frame)
-        else:
-            cos_theta = np.cos(w)
-            sin_theta = np.sin(w)
-
-            # get rotation
-            R = np.array([[cos_theta, -sin_theta], [sin_theta, cos_theta]])
-            assert R.shape == (2, 2)
-            rt = Rot2.by_matrix(R, local_frame, base_frame)
-
-            # get translation
-            V = np.array([[sin_theta, cos_theta - 1], [1 - cos_theta, sin_theta]]) / w
-            u = vector[0:2]
-            t = V @ u
-            assert len(u) == 2
-            pt = Point2.by_array(t, base_frame)
-
-            return SE2Pose.by_point_and_rotation(pt, rt, local_frame, base_frame)
+        T = SE2.exp(vector)
+        x = T.trans[0]
+        y = T.trans[1]
+        theta = T.rot.to_angle()
+        return cls(x, y, theta, local_frame, base_frame)
 
     def copy(self) -> "SE2Pose":
         return SE2Pose(
@@ -1248,96 +1187,17 @@ class SE2Pose(SEPose):
         )
 
     def copyInverse(self) -> "SE2Pose":
-        inv_t = -(self._rot.unrotate_point(self._point))
-        return SE2Pose.by_point_and_rotation(
-            point=inv_t,
-            rotation=self._rot.copyInverse(),
+        T = self.se_group.inv()
+        return SE2Pose(
+            x=T.trans[0],
+            y=T.trans[1],
+            theta=T.rot.to_angle(),
             local_frame=self._base_frame,
             base_frame=self._local_frame,
         )
 
-    def range_and_bearing_to_point(self, point: Point2) -> Tuple[float, float]:
-        assert isinstance(point, Point2)
-        diff = point - self._point
-        dist = diff.norm
-        bearing = self._rot.bearing_to_base_frame_point(diff)
-        return dist, bearing
-
-    def transform_to(self, other):
-        assert isinstance(other, SE2Pose)
-        assert self.base_frame == other.base_frame
-        assert not self.local_frame == other.local_frame
-        return self.copyInverse() * other
-
-    def transform_local_point_to_base(self, local_point: Point2) -> Point2:
-        assert isinstance(local_point, Point2)
-        return self * local_point
-
-    def transform_base_point_to_local(self, base_point: Point2) -> Point2:
-        assert isinstance(base_point, Point2)
-        return self.copyInverse() * base_point
-
-    def distance_to_pose(self, other: "SE2Pose") -> float:
-        assert isinstance(other, SE2Pose)
-
-        cur_position = self.translation
-        other_position = other.translation
-        assert cur_position.frame == other_position.frame
-
-        dist = cur_position.distance(other_position)
-        assert isinstance(dist, float)
-        return dist
-
-    def __mul__(self, other):
-        assert isinstance(other, (SE2Pose, Point2))
-        if isinstance(other, SE2Pose):
-            assert self.local_frame == other.base_frame
-            r = self._rot * other.rotation
-            t = self._point + self._rot * other.translation
-            return SE2Pose.by_point_and_rotation(
-                point=t,
-                rotation=r,
-                local_frame=other.local_frame,
-                base_frame=self.base_frame,
-            )
-        if isinstance(other, Point2):
-            assert self.local_frame == other.frame
-            return self._rot * other + self._point
-
-    def __imul__(self, other):
-        if isinstance(other, SE2Pose):
-            pos = self * other
-            self._point = self._point.x(x=pos.x)
-            self._point = self._point.y(y=pos.y)
-            self._rot = self._rot.theta(pos.theta)
-            self._local_frame = other.local_frame
-            return self
-        raise ValueError("Not a Pose2 type to multiply.")
-
     def __str__(self) -> str:
         return f"Pose2[x: {self.x:.3f}, y: {self.y:.3f}, theta: {self.theta:.3f}, local_frame: {self.local_frame}, base_frame: {self.base_frame}]"
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, SE2Pose):
-            return (
-                abs(self._rot.theta - other.theta) < _ROTATION_TOLERANCE
-                and abs(self._point.x - other.x) < _TRANSLATION_TOLERANCE
-                and abs(self._point.y - other.y) < _TRANSLATION_TOLERANCE
-                and self._local_frame == other.local_frame
-                and self._base_frame == other.base_frame
-            )
-        return False
-
-    def __hash__(self):
-        return hash(
-            (
-                self._point.x,
-                self._point.y,
-                self._rot.theta,
-                self._local_frame,
-                self._base_frame,
-            )
-        )
 
 
 class SE3Pose(SEPose):
@@ -1377,75 +1237,63 @@ class SE3Pose(SEPose):
         R = SO3.from_rpy(roll, pitch, yaw)
         t = np.array([x, y, z])
         T = np.eye(4)
-        T[:3, :3] = R.matrix()
+        T[:3, :3] = R.as_matrix()
         T[:3, 3] = t
 
         # class attributes
-        self._SE3 = SE3.from_matrix(T)
+        self._SE = SE3.from_matrix(T)
         self._local_frame = local_frame
         self._base_frame = base_frame
 
     @property
     def x(self) -> float:
-        return self._SE3.trans[0]
+        return self.se_group.trans[0]
 
     @property
     def y(self) -> float:
-        return self._SE3.trans[1]
+        return self.se_group.trans[1]
 
     @property
     def z(self) -> float:
-        return self._SE3.trans[2]
+        return self.se_group.trans[2]
 
     @property
     def roll(self) -> float:
-        return self._SE3.rot.to_rpy()[0]
+        return self.se_group.rot.to_rpy()[0]
 
     @property
     def pitch(self) -> float:
-        return self._SE3.rot.to_rpy()[1]
+        return self.se_group.rot.to_rpy()[1]
 
     @property
     def yaw(self) -> float:
-        return self._SE3.rot.to_rpy()[2]
+        return self.se_group.rot.to_rpy()[2]
 
     @property
-    def rotation(self) -> Rot3:
+    def rot(self) -> Rot3:
         return Rot3(self.roll, self.pitch, self.yaw, self.local_frame, self.base_frame)
 
     @property
-    def translation(self) -> Point3:
+    def point(self) -> Point3:
         return Point3(self.x, self.y, self.z, self.base_frame)
 
     @property
-    def matrix(self) -> np.ndarray:
-        return self._SE3.as_matrix()
-
-    @property
-    def array(self) -> np.ndarray:
+    def array(self) -> np.array:
         return np.array([self.x, self.y, self.z, self.roll, self.pitch, self.yaw])
-
-    @property
-    def log_map(self) -> np.ndarray:
-        return self._SE3.log()
-
-    @property
-    def grad_x_logmap(self) -> np.ndarray:
-        raise NotImplementedError("Gradient of logmap not implemented for SE3Pose.")
 
     @classmethod
     def by_point_and_rotation(
-        cls, point: Point3, rotation: Rot3, local_frame: str, base_frame: str
+        cls, point: Point3, rot: Rot3, local_frame: str, base_frame: str
     ) -> "SE3Pose":
         assert isinstance(point, Point3)
-        assert isinstance(rotation, Rot3)
+        assert isinstance(rot, Rot3)
         return cls(
             point.x,
             point.y,
             point.z,
-            rotation.roll,
-            rotation.pitch,
-            rotation.yaw,
+            rot.roll,
+            rot.pitch,
+            rot.yaw,
             local_frame,
             base_frame,
         )
@@ -1456,14 +1304,14 @@ class SE3Pose(SEPose):
     ) -> "SE3Pose":
         assert isinstance(matrix, np.ndarray)
         point = Point3.by_array(matrix[:3, 3], local_frame)
-        rotation = Rot3.by_matrix(matrix[:3, :3], local_frame, base_frame)
-        return SE3Pose.by_point_and_rotation(point, rotation, local_frame, base_frame)
+        rot = Rot3.by_matrix(matrix[:3, :3], local_frame, base_frame)
+        return SE3Pose.by_point_and_rotation(point, rot, local_frame, base_frame)
 
     @classmethod
     def by_exp_map(
-        cls, vector: np.ndarray, local_frame: str, base_frame: str
+        cls, vector: np.array, local_frame: str, base_frame: str
     ) -> "SE3Pose":
-        assert isinstance(vector, np.ndarray)
+        assert isinstance(vector, np.array)
         assert len(vector) == 6
         T = SE3.exp(vector)
         x = T.trans[0]
@@ -1485,7 +1333,7 @@ class SE3Pose(SEPose):
         )
 
     def copyInverse(self) -> "SE3Pose":
-        T = self._SE3.inv()
+        T = self.se_group.inv()
         return SE3Pose(
             x=T.trans[0],
             y=T.trans[1],
@@ -1493,84 +1341,12 @@ class SE3Pose(SEPose):
             roll=T.rot.to_rpy()[0],
             pitch=T.rot.to_rpy()[1],
             yaw=T.rot.to_rpy()[2],
-            local_frame=self._local_frame,
-            base_frame=self._base_frame,
+            local_frame=self._base_frame,
+            base_frame=self._local_frame,
         )
-
-    def range_and_bearing_to_point(
-        self, pt: Point3
-    ) -> Tuple[float, Tuple[float, float]]:
-        assert isinstance(pt, Point3)
-        diff = pt - self.translation
-        dist = diff.norm
-        bearing = self.rotation.bearing_to_base_frame_point(diff)
-        return dist, bearing
-
-    def transform_to(self, other):
-        assert isinstance(other, SE3Pose)
-        assert self.base_frame == other.base_frame
-        assert not self.local_frame == other.local_frame
-        return self.copyInverse() * other
-
-    def transform_local_point_to_base(self, local_point: Point3) -> Point3:
-        assert isinstance(local_point, Point3)
-        return self * local_point
-
-    def transform_base_point_to_local(self, base_point: Point3) -> Point3:
-        assert isinstance(base_point, Point3)
-        return self.copyInverse() * base_point
-
-    def distance_to_pose(self, other: "SE3Pose") -> float:
-        assert isinstance(other, SE3Pose)
-
-        cur_position = self.translation
-        other_position = other.translation
-        assert cur_position.frame == other_position.frame
-
-        dist = cur_position.distance(other_position)
-        assert isinstance(dist, float)
-        return dist
-
-    def __mul__(self, other):
-        assert isinstance(other, (SE3Pose, Point3))
-        if isinstance(other, SE3Pose):
-            assert self.local_frame == other.base_frame
-            T = self.matrix @ other.matrix
-            return SE3Pose.by_matrix(
-                matrix=T, local_frame=other.local_frame, base_frame=self.base_frame
-            )
-        if isinstance(other, Point3):
-            assert self.local_frame == other.frame
-            return self.rotation * other + self.translation
-
-    def __imul__(self, other):
-        if isinstance(other, SE3Pose):
-            pose = self * other
-            self._SE3 = SE3.from_matrix(pose.matrix())
-            self._local_frame = other.local_frame
-            return self
-        raise ValueError("Not a Pose3 type to multiply.")
 
     def __str__(self) -> str:
         return f"Pose3[x: {self.x:.3f}, y: {self.y:.3f}, z: {self.z:.3f}, roll: {self.roll:.3f}, pitch: {self.pitch:.3f}, yaw: {self.yaw:.3f}, local_frame: {self.local_frame}, base_frame: {self.base_frame}]"
 
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, SE3Pose):
-            rotation_similar = np.allclose(
-                np.array(self._SE3.rot.to_rpy()),
-                np.array(other._SE3.rot.to_rpy()),
-                _ROTATION_TOLERANCE,
-            )
-            translation_similar = np.allclose(
-                self._SE3.trans, other._SE3.trans, _TRANSLATION_TOLERANCE
-            )
-            return (
-                rotation_similar
-                and translation_similar
-                and self._local_frame == other.local_frame
-                and self._base_frame == other.base_frame
-            )
-        return False
-
     def __hash__(self):
-        return hash((self._SE3, self._local_frame, self._base_frame))
+        return hash((self.se_group, self._local_frame, self._base_frame))

@@ -48,7 +48,7 @@ class Agent:
 
     @property
     def position(self) -> Point2:
-        pass
+        raise NotImplementedError("position property must be implemented")
 
     @abstractmethod
     def plot(self) -> None:
@@ -125,8 +125,8 @@ class Robot(Agent):
     @property
     def position(self) -> Point2:
         assert isinstance(self._pose, SE2Pose)
-        assert isinstance(self._pose.translation, Point2)
-        return self._pose.translation
+        assert isinstance(self._pose.point, Point2)
+        return self._pose.point
 
     @property
     def pose(self) -> SE2Pose:
@@ -157,13 +157,13 @@ class Robot(Agent):
         if gt_measure:
             true_transform = self.pose.transform_to(other_pose)
             return LoopClosure(
-                self.pose,
-                other_pose,
-                measure_association,
-                true_transform,
-                self.timestep,
-                self._loop_closure_model.mean,
-                self._loop_closure_model.covariance,
+                pose_1=self.pose,
+                pose_2=other_pose,
+                measured_association=measure_association,
+                measured_rel_pose=true_transform,
+                timestamp=self.timestep,
+                mean_offset=self._loop_closure_model.mean,
+                covariance=self._loop_closure_model.covariance,
             )
         return self._loop_closure_model.get_relative_pose_measurement(
             self.pose, other_pose, measure_association, self.timestep

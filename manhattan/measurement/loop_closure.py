@@ -1,10 +1,6 @@
-import numpy as np
-import attr
-
 from manhattan.geometry.TwoDimension import SE2Pose
 
 
-@attr.s(frozen=True)
 class LoopClosure:
     """
     represents a loop closure between poses
@@ -19,13 +15,23 @@ class LoopClosure:
     covariance (np.ndarray): the covariance of the measurement model
     """
 
-    pose_1: SE2Pose = attr.ib()
-    pose_2: SE2Pose = attr.ib()
-    measured_association: str = attr.ib()
-    measured_rel_pose: SE2Pose = attr.ib()
-    timestamp: int = attr.ib()
-    mean_offset: np.ndarray = attr.ib()
-    covariance: np.ndarray = attr.ib()
+    def __init__(
+        self,
+        pose_1,
+        pose_2,
+        measured_association,
+        measured_rel_pose,
+        timestamp,
+        mean_offset,
+        covariance,
+    ):
+        self.pose_1 = pose_1
+        self.pose_2 = pose_2
+        self.measured_association = measured_association
+        self.measured_rel_pose = measured_rel_pose
+        self.timestamp = timestamp
+        self.mean_offset = mean_offset
+        self.covariance = covariance
 
     def __str__(self) -> str:
         return (

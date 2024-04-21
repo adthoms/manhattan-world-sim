@@ -3,7 +3,6 @@ import numpy as np
 
 from manhattan.measurement.loop_closure import LoopClosure
 from manhattan.geometry.TwoDimension import SE2Pose
-from numpy import ndarray
 
 
 class LoopClosureModel:
@@ -132,11 +131,11 @@ class GaussianLoopClosureModel(LoopClosureModel):
         # the order of operations???
         noisy_pose_measurement = rel_pose * mean_offset * noise_offset
         return LoopClosure(
-            pose_1,
-            pose_2,
-            association,
-            noisy_pose_measurement,
-            timestamp,
-            self._mean,
-            self._covariance,
+            pose_1=pose_1,
+            pose_2=pose_2,
+            measured_association=association,
+            measured_rel_pose=noisy_pose_measurement,
+            timestamp=timestamp,
+            mean_offset=self._mean,
+            covariance=self._covariance,
         )
