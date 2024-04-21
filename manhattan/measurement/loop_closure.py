@@ -1,3 +1,5 @@
+import numpy as np
+
 from manhattan.geometry.TwoDimension import SE2Pose
 
 
@@ -17,13 +19,13 @@ class LoopClosure:
 
     def __init__(
         self,
-        pose_1,
-        pose_2,
-        measured_association,
-        measured_rel_pose,
-        timestamp,
-        mean_offset,
-        covariance,
+        pose_1: SE2Pose,
+        pose_2: SE2Pose,
+        measured_association: str,
+        measured_rel_pose: SE2Pose,
+        timestamp: int,
+        mean_offset: np.ndarray,
+        covariance: np.ndarray,
     ):
         self.pose_1 = pose_1
         self.pose_2 = pose_2

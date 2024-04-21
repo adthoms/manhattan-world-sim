@@ -2,16 +2,13 @@ import numpy as np
 import math
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import List, Tuple, Union, Optional, overload
 from liegroups.numpy import SO2, SO3
 from liegroups.numpy import SE2, SE3
+from typing import List, Tuple, Union, Optional, overload
 
 
 _TRANSLATION_TOLERANCE = 1e-6  # m
 _ROTATION_TOLERANCE = 1e-9  # rad
-_RAD_TO_DEG_FACTOR = 180.0 / np.pi
-_DEG_TO_RAD_FACTOR = np.pi / 180.0
-_TWO_PI = 2 * np.pi
 
 
 class DIM(Enum):
@@ -22,7 +19,7 @@ class DIM(Enum):
 def check_compatible_types(self, other):
     assert (
         (type(self), type(other)) == (SE2Pose, Point2)
-        or (SE2Pose, Point3)
+        or (SE3Pose, Point3)
         or (Rot2, Point2)
         or (Rot3, Point3)
     )
@@ -31,29 +28,26 @@ def check_compatible_types(self, other):
 def check_same_types(self, other):
     assert (
         (type(self), type(other)) == (SE2Pose, SE2Pose)
-        or (SE2Pose, SE2Pose)
+        or (SE3Pose, SE3Pose)
         or (Rot2, Rot2)
         or (Rot3, Rot3)
+        or (Point2, Point2)
+        or (Point3, Point3)
     )
 
 
 def none_to_zero(x: Optional[float]) -> float:
-    """
-    Converts a None value to 0.0 if x is None. Otherwise, returns x.
-
-    Args:
-        x (Optional[float]): The input value.
-
-    Returns:
-        float: The converted value.
-    """
     return 0.0 if x is None else x
+
+
+def wrap_angle_to_pipi(theta: float):
+    return (theta + np.pi) % (2 * np.pi) - np.pi
 
 
 class Point(ABC):
     def __init__(self, dim: DIM, x: float, y: float, z: float, frame: str) -> None:
         """
-        Abstract base class for 2D and 3D point classes.
+        Abstract base class for 2D and 3D Point classes.
 
         Args:
             dim (int): the point dimension.
@@ -80,14 +74,15 @@ class Point(ABC):
         Calculates the Euclidean distance between two points.
 
         Args:
-            x1 (Point): The coordinates of the first point.
-            x2 (Point): The coordinates of the second point.
+            x1 (Point): the coordinates of the first point.
+            x2 (Point): the coordinates of the second point.
 
         Returns:
-            float: The Euclidean distance between the two points.
+            float: the Euclidean distance between the two points.
         """
         assert isinstance(x1, Point)
         assert isinstance(x2, Point)
+        check_same_types(x1, x2)
         return np.linalg.norm(x1.array() - x2.array())
 
     @property
@@ -120,7 +115,7 @@ class Point(ABC):
         Returns:
             float: The Euclidean norm of the vector.
         """
-        return np.linalg.norm([self._x, self._y, self._z])
+        return np.linalg.norm(self.array)
 
     @property
     @abstractmethod
@@ -129,7 +124,7 @@ class Point(ABC):
         Returns an array containing the coordinates of this point.
 
         Returns:
-            np.ndarray: The coordinates of this point.
+            np.ndarray: the coordinates of this point.
         """
         pass
 
@@ -140,11 +135,11 @@ class Point(ABC):
         Creates a Point object from an array.
 
         Args:
-          other : An array-like object representing the coordinates of the point.
-          frame (str): The frame of reference for the point.
+          other : an array-like object representing the coordinates of the point.
+          frame (str): the frame of reference for the point.
 
         Returns:
-          Point: A Point object.
+          Point: a Point object.
         """
         pass
 
@@ -154,7 +149,7 @@ class Point(ABC):
         Creates a deep copy of this point.
 
         Returns:
-            Point: A deep copy of this point.
+            Point: a deep copy of this point.
         """
         pass
 
@@ -164,7 +159,7 @@ class Point(ABC):
         Creates a deep copy of this point and negate coordinates.
 
         Returns:
-            Point: A deep copy of this point with negated coordinates.
+            Point: a deep copy of this point with negated coordinates.
         """
         pass
 
@@ -173,10 +168,10 @@ class Point(ABC):
         Calculates the Euclidean distance between two points.
 
         Parameters:
-            other (Point): The other point to calculate the distance to.
+            other (Point): the other point to calculate the distance to.
 
         Returns:
-            float: The Euclidean distance between the two points.
+            float: the Euclidean distance between the two points.
         """
         assert isinstance(other, type(self))
         assert self.frame == other.frame
@@ -288,6 +283,7 @@ class Point2(Point):
         return Point2(self.x * other, self.y * other, self.frame)
 
     def __rmul__(self, other: float) -> "Point2":
+        assert np.isscalar(other)
         return Point2(self.x * other, self.y * other, self.frame)
 
     def __truediv__(self, other: Union[int, float]) -> "Point2":
@@ -380,12 +376,15 @@ class Rot(ABC):
         Calculates the chordal distance between two rotations.
 
         Args:
-            x1 (Rot2): The first Rot object.
-            x2 (Rot2): The second Rot object.
+            x1 (Rot2): the first Rot object.
+            x2 (Rot2): the second Rot object.
 
         Returns:
-            float: The chordal distance between x1 and x2.
+            float: the chordal distance between x1 and x2.
         """
+        assert isinstance(x1, Rot)
+        assert isinstance(x2, Rot)
+        check_same_types(x1, x2)
         return np.linalg.norm((x1.copyInverse() * x2).log_map())
 
     @property
@@ -397,17 +396,23 @@ class Rot(ABC):
         return self._base_frame
 
     @property
-    def lie_group(self):
+    def lie_group(self) -> Union[SO2, SO3]:
+        """
+        Returns the underlying SO(n) group representing the rotation. For 2D n=2, for 3D n=3.
+
+        Returns:
+            Union[SO2, SO3]: the SO(n) group.
+        """
         return self._SO
 
     @property
     @abstractmethod
-    def angles(self):
+    def angles(self) -> Union[float, Tuple[float, float, float]]:
         """
         Returns the angular representation of the rotation in radians. For 2D rotations, theta is returned. For 3D rotations, (roll, pitch, yaw) is returned.
 
         Returns:
-         Union[float, Tuple[float, float, float]]: angles representing the Rot object.
+            Union[float, Tuple[float, float, float]]: angles representing the Rot object.
         """
         pass
 
@@ -417,7 +422,7 @@ class Rot(ABC):
         Returns the matrix representation of the rotation.
 
         Returns:
-          np.ndarray: A 2D array representing the rotation matrix.
+            np.ndarray: a 2D array representing the rotation matrix.
         """
         return self.lie_group.as_matrix()
 
@@ -433,17 +438,17 @@ class Rot(ABC):
 
     @classmethod
     @abstractmethod
-    def by_array(cls, angles: np.array, local_frame: str, base_frame: str):
+    def by_array(cls, angles: np.ndarray, local_frame: str, base_frame: str):
         """
         Creates a Rot object from an array of angles with a specified local and base frame.
 
         Args:
-            angles (np.array): An array of angles representing the rotation.
-            local_frame (str): The local frame of the rotation.
-            base_frame (str): The base frame of the rotation.
+            angles (np.array): an array of angles representing the rotation.
+            local_frame (str): the local frame of the rotation.
+            base_frame (str): the base frame of the rotation.
 
         Returns:
-            Rot: The Rot object.
+            Rot: the Rot object.
         """
         pass
 
@@ -465,7 +470,7 @@ class Rot(ABC):
 
     @classmethod
     @abstractmethod
-    def by_exp_map(cls, vector: np.array, local_frame: str, base_frame: str):
+    def by_exp_map(cls, vector: np.ndarray, local_frame: str, base_frame: str):
         """
         Creates a Rot object from a rotation vector with a specified local and base frame.
 
@@ -510,9 +515,7 @@ class Rot(ABC):
         Returns:
             Point: the rotated point.
         """
-        check_compatible_types(self, local_pt)
-        assert self.local_frame == local_pt.frame
-        return self * local_pt
+        pass
 
     @abstractmethod
     def unrotate_point(self, base_frame_pt):
@@ -525,9 +528,7 @@ class Rot(ABC):
         Returns:
             Point: the point in the local frame.
         """
-        check_compatible_types(self, base_frame_pt)
-        assert self.base_frame == base_frame_pt.frame
-        return self.copyInverse() * base_frame_pt
+        pass
 
     @abstractmethod
     def bearing_to_local_frame_point(
@@ -605,7 +606,7 @@ class Rot2(Rot):
 
     @property
     def theta(self) -> float:
-        return self.angles
+        return wrap_angle_to_pipi(self.angles)
 
     @theta.setter
     def theta(self, theta: float):
@@ -613,19 +614,24 @@ class Rot2(Rot):
         self._SO = SO2.from_angle(theta)
 
     @classmethod
-    def by_array(cls, angles: np.array, local_frame: str, base_frame: str) -> "Rot2":
+    def by_array(cls, angles: np.ndarray, local_frame: str, base_frame: str) -> "Rot2":
+        assert isinstance(angles, np.ndarray)
+        assert len(angles) == 1
         theta = none_to_zero(angles[0])
         return cls(theta, local_frame, base_frame)
 
     @classmethod
     def by_matrix(cls, matrix: np.ndarray, local_frame: str, base_frame: str) -> "Rot2":
         assert isinstance(matrix, np.ndarray)
+        assert matrix.shape == (2, 2)
         theta = SO2.from_matrix(matrix).to_angle()
         return cls(theta, local_frame, base_frame)
 
     @classmethod
-    def by_exp_map(cls, vector: np.array, local_frame: str, base_frame: str) -> "Rot2":
-        assert isinstance(vector, np.array)
+    def by_exp_map(
+        cls, vector: np.ndarray, local_frame: str, base_frame: str
+    ) -> "Rot2":
+        assert isinstance(vector, np.ndarray)
         assert len(vector) == 1
         return cls(vector[0], local_frame, base_frame)
 
@@ -670,11 +676,13 @@ class Rot2(Rot):
             assert self.local_frame == other.base_frame
             theta = self.lie_group.dot(other.lie_group).to_angle()
             return Rot2(theta, self.local_frame, other.base_frame)
-        if isinstance(other, Point2):
+        elif isinstance(other, Point2):
             assert self.local_frame == other.frame
             point_rotated = self.lie_group.dot(other.array)
             x, y = point_rotated[0], point_rotated[1]
             return Point2(x, y, self.base_frame)
+        else:
+            raise ValueError("Not a valid Point2 or Rot2 type to multiply.")
 
     def __str__(self) -> str:
         return f"Rot2[theta: {self.theta:.3f}, local_frame: {self.local_frame}, base_frame: {self.base_frame}]"
@@ -717,16 +725,10 @@ class Rot3(Rot):
     def angles(self) -> Tuple[float, float, float]:
         return (self.roll, self.pitch, self.yaw)
 
-    @property
-    def matrix(self) -> np.ndarray:
-        return self.lie_group.as_matrix()
-
-    @property
-    def log_map(self) -> np.ndarray:
-        return self.lie_group.log()
-
     @classmethod
-    def by_array(cls, angles: np.array, local_frame: str, base_frame: str) -> "Rot3":
+    def by_array(cls, angles: np.ndarray, local_frame: str, base_frame: str) -> "Rot3":
+        assert isinstance(angles, np.ndarray)
+        assert len(angles) == 3
         roll = none_to_zero(angles[0])
         pitch = none_to_zero(angles[1])
         yaw = none_to_zero(angles[2])
@@ -735,11 +737,14 @@ class Rot3(Rot):
     @classmethod
     def by_matrix(cls, matrix: np.ndarray, local_frame: str, base_frame: str) -> "Rot3":
         assert isinstance(matrix, np.ndarray)
+        assert matrix.shape == (3, 3)
         roll, pitch, yaw = SO3.from_matrix(matrix).to_rpy()
         return cls(roll, pitch, yaw, local_frame, base_frame)
 
     @classmethod
-    def by_exp_map(cls, vector: np.array, local_frame: str, base_frame: str) -> "Rot3":
+    def by_exp_map(
+        cls, vector: np.ndarray, local_frame: str, base_frame: str
+    ) -> "Rot3":
         assert isinstance(vector, np.array)
         assert len(vector) == 3
         roll, pitch, yaw = SO3.exp(vector).to_rpy()
@@ -787,11 +792,13 @@ class Rot3(Rot):
             assert self.local_frame == other.base_frame
             roll, pitch, yaw = self.lie_group.dot(other.lie_group).to_rpy()
             return Rot3(roll, pitch, yaw, self.local_frame, other.base_frame)
-        if isinstance(other, Point3):
+        elif isinstance(other, Point3):
             assert self.local_frame == other.frame
             point_rotated = self.lie_group.dot(other.array)
             x, y, z = point_rotated[0], point_rotated[1], point_rotated[2]
             return Point3(x, y, z, self.base_frame)
+        else:
+            raise ValueError("Not a valid Point3 or Rot3 type to multiply.")
 
     def __str__(self) -> str:
         return f"Rot3[roll: {self.roll:.3f}, pitch: {self.pitch:.3f}, yaw: {self.yaw:.3f}, local_frame: {self.local_frame}, base_frame: {self.base_frame}]"
@@ -800,7 +807,7 @@ class Rot3(Rot):
 class SEPose(ABC):
     def __init__(self, local_frame: str, base_frame: str) -> None:
         """
-        Abstract base class for 2D and 3D pose classes.
+        Abstract base class for SE(n) pose classes. For 2D n=2, for 3D n=3.
 
         Args:
             local_frame (str): the local frame of the pose.
@@ -831,11 +838,11 @@ class SEPose(ABC):
         Returns:
             float: The chordal distance between x1 and x2.
         """
+        assert isinstance(x1, SEPose)
+        assert isinstance(x2, SEPose)
+        check_same_types(x1, x2)
         T1 = x1.matrix()
         T2 = x2.matrix()
-        assert T1.shape == T2.shape
-        assert T1.shape[0] == T2.shape[1]
-        assert T1.shape[0] == DIM.TWO or T1.shape[0] == DIM.THREE
         return np.linalg.norm(T1 - T2, ord="fro")
 
     @property
@@ -857,7 +864,7 @@ class SEPose(ABC):
         Returns a Rot object representing the rotation of this pose.
 
         Returns:
-          Rot: The Rot object.
+            Rot: The Rot object.
         """
         pass
 
@@ -868,7 +875,7 @@ class SEPose(ABC):
         Returns a Point object representing the translation of this pose.
 
         Returns:
-          Point: The Point object.
+            Point: The Point object.
         """
         pass
 
@@ -884,7 +891,7 @@ class SEPose(ABC):
 
     @property
     @abstractmethod
-    def array(self) -> np.array:
+    def array(self) -> np.ndarray:
         """
         Returns the array representation of the pose object.
 
@@ -938,7 +945,7 @@ class SEPose(ABC):
 
     @classmethod
     @abstractmethod
-    def by_exp_map(cls, vector: np.array, local_frame: str, base_frame: str):
+    def by_exp_map(cls, vector: np.ndarray, local_frame: str, base_frame: str):
         """
         Creates a pose object from an exponential map vector.
 
@@ -1099,7 +1106,7 @@ class SE2Pose(SEPose):
     ) -> None:
         super().__init__(local_frame, base_frame)
         """
-        A pose in SE(2).
+        An SE(2) pose.
 
         Args:
             x (float): the x-coordinate of the pose in the base frame.
@@ -1125,16 +1132,16 @@ class SE2Pose(SEPose):
         self._base_frame = base_frame
 
     @property
-    def theta(self) -> float:
-        return self.se_group.rot.to_angle()
-
-    @property
     def x(self) -> float:
         return self.se_group.trans[0]
 
     @property
     def y(self) -> float:
         return self.se_group.trans[1]
+
+    @property
+    def theta(self) -> float:
+        return wrap_angle_to_pipi(self.se_group.rot.to_angle())
 
     @property
     def rot(self) -> Rot2:
@@ -1145,7 +1152,7 @@ class SE2Pose(SEPose):
         return Point2(self.x, self.y, self.base_frame)
 
     @property
-    def array(self) -> np.array:
+    def array(self) -> np.ndarray:
         return np.array([self.x, self.y, self.theta])
 
     @classmethod
@@ -1161,15 +1168,16 @@ class SE2Pose(SEPose):
         cls, matrix: np.ndarray, local_frame: str, base_frame: str
     ) -> "SE2Pose":
         assert isinstance(matrix, np.ndarray)
+        assert matrix.shape == (3, 3)
         point = Point2.by_array(matrix[:2, 2], local_frame)
         rot = Rot2.by_matrix(matrix[:2, :2], local_frame, base_frame)
         return SE2Pose.by_point_and_rotation(point, rot, local_frame, base_frame)
 
     @classmethod
     def by_exp_map(
-        cls, vector: np.array, local_frame: str, base_frame: str
+        cls, vector: np.ndarray, local_frame: str, base_frame: str
     ) -> "SE2Pose":
-        assert isinstance(vector, np.array)
+        assert isinstance(vector, np.ndarray)
         assert len(vector) == 3
         T = SE2.exp(vector)
         x = T.trans[0]
@@ -1214,7 +1222,7 @@ class SE3Pose(SEPose):
     ) -> None:
         super().__init__(local_frame, base_frame)
         """
-        A pose in SE(3).
+        An SE(3) pose.
 
         Args:
             x (float): the x coordinate.
@@ -1278,7 +1286,7 @@ class SE3Pose(SEPose):
         return Point3(self.x, self.y, self.z, self.base_frame)
 
     @property
-    def array(self) -> np.array:
+    def array(self) -> np.ndarray:
         return np.array([self.x, self.y, self.z, self.roll, self.pitch, self.yaw])
 
     @classmethod
@@ -1303,13 +1311,14 @@ class SE3Pose(SEPose):
         cls, matrix: np.ndarray, local_frame: str, base_frame: str
     ) -> "SE3Pose":
         assert isinstance(matrix, np.ndarray)
+        assert matrix.shape == (4, 4)
         point = Point3.by_array(matrix[:3, 3], local_frame)
         rot = Rot3.by_matrix(matrix[:3, :3], local_frame, base_frame)
         return SE3Pose.by_point_and_rotation(point, rot, local_frame, base_frame)
 
     @classmethod
     def by_exp_map(
-        cls, vector: np.array, local_frame: str, base_frame: str
+        cls, vector: np.ndarray, local_frame: str, base_frame: str
     ) -> "SE3Pose":
         assert isinstance(vector, np.array)
         assert len(vector) == 6
@@ -1347,6 +1356,3 @@ class SE3Pose(SEPose):
 
     def __str__(self) -> str:
         return f"Pose3[x: {self.x:.3f}, y: {self.y:.3f}, z: {self.z:.3f}, roll: {self.roll:.3f}, pitch: {self.pitch:.3f}, yaw: {self.yaw:.3f}, local_frame: {self.local_frame}, base_frame: {self.base_frame}]"
-
-    def __hash__(self):
-        return hash((self.se_group, self._local_frame, self._base_frame))
