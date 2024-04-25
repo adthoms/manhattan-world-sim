@@ -2,7 +2,7 @@ from abc import abstractmethod
 import numpy as np
 
 from manhattan.measurement.odom_measurement import OdomMeasurement
-from manhattan.geometry.TwoDimension import SE2Pose
+from manhattan.geometry.Elements import SE2Pose
 from numpy import ndarray
 
 

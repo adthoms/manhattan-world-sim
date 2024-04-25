@@ -1,4 +1,4 @@
-from manhattan.geometry.TwoDimension import SE2Pose
+from manhattan.geometry.Elements import SE2Pose
 import numpy as np
 from numpy import ndarray
 

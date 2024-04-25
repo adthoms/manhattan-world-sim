@@ -5,7 +5,7 @@ import numpy as np
 from typing import Tuple, List, Union, Optional
 import matplotlib.pyplot as plt  # type: ignore
 
-from manhattan.geometry.TwoDimension import SE2Pose, Point2
+from manhattan.geometry.Elements import SE2Pose, Point2
 from manhattan.agent.agent import Robot
 from manhattan.utils.sample_utils import choice
 

@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Sequence, Sized, overload, Tuple, List
-from manhattan.geometry.TwoDimension import Point2, SE2Pose
+from manhattan.geometry.Elements import Point2, SE2Pose
 
 
 @overload

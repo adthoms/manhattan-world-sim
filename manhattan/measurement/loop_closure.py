@@ -1,6 +1,6 @@
 import numpy as np
 
-from manhattan.geometry.TwoDimension import SE2Pose
+from manhattan.geometry.Elements import SE2Pose
 
 
 class LoopClosure:

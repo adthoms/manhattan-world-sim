@@ -8,7 +8,7 @@ from manhattan.noise_models.loop_closure_model import LoopClosureModel
 from manhattan.measurement.range_measurement import RangeMeasurement
 from manhattan.measurement.odom_measurement import OdomMeasurement
 from manhattan.measurement.loop_closure import LoopClosure
-from manhattan.geometry.TwoDimension import SE2Pose, Point2
+from manhattan.geometry.Elements import SE2Pose, Point2
 
 
 class Agent:

@@ -16,23 +16,23 @@ class DIM(Enum):
     THREE = 3
 
 
-def check_compatible_types(self, other):
+def check_compatible_types(obj1, obj2):
     assert (
-        (type(self), type(other)) == (SE2Pose, Point2)
-        or (SE3Pose, Point3)
-        or (Rot2, Point2)
-        or (Rot3, Point3)
+        (type(obj1), type(obj2)) == (SE2Pose, Point2)
+        or (type(obj1), type(obj2)) == (SE3Pose, Point3)
+        or (type(obj1), type(obj2)) == (Rot2, Point2)
+        or (type(obj1), type(obj2)) == (Rot3, Point3)
     )
 
 
-def check_same_types(self, other):
+def check_same_types(obj1, obj2):
     assert (
-        (type(self), type(other)) == (SE2Pose, SE2Pose)
-        or (SE3Pose, SE3Pose)
-        or (Rot2, Rot2)
-        or (Rot3, Rot3)
-        or (Point2, Point2)
-        or (Point3, Point3)
+        (type(obj1), type(obj2)) == (SE2Pose, SE2Pose)
+        or (type(obj1), type(obj2)) == (SE3Pose, SE3Pose)
+        or (type(obj1), type(obj2)) == (Rot2, Rot2)
+        or (type(obj1), type(obj2)) == (Rot3, Rot3)
+        or (type(obj1), type(obj2)) == (Point2, Point2)
+        or (type(obj1), type(obj2)) == (Point3, Point3)
     )
 
 
@@ -83,7 +83,7 @@ class Point(ABC):
         assert isinstance(x1, Point)
         assert isinstance(x2, Point)
         check_same_types(x1, x2)
-        return np.linalg.norm(x1.array() - x2.array())
+        return np.linalg.norm(x1.array - x2.array)
 
     @property
     def x(self) -> float:
