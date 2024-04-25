@@ -239,7 +239,7 @@ class Point(ABC):
     def __eq__(self, other) -> bool:
         if isinstance(other, type(self)):
             return (
-                np.allclose(self.array(), other.array(), _TRANSLATION_TOLERANCE)
+                np.allclose(self.array, other.array, _TRANSLATION_TOLERANCE)
                 and self.frame == other.frame
             )
         return False
