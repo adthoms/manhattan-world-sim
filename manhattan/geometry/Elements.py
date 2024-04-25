@@ -385,7 +385,7 @@ class Rot(ABC):
         assert isinstance(x1, Rot)
         assert isinstance(x2, Rot)
         check_same_types(x1, x2)
-        return np.linalg.norm((x1.copyInverse() * x2).log_map())
+        return np.linalg.norm((x1.copyInverse() * x2).log_map)
 
     @property
     def local_frame(self) -> str:
