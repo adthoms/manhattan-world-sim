@@ -161,7 +161,7 @@ class TestGeometry(unittest.TestCase):
         test_point_3 = Point3(x_3, y_3, z_3, ODOM)
         test_point_4 = test_point_3.copy()
 
-        self.assertTrue(test_point_1 ==test_point_2)
+        self.assertTrue(test_point_1 == test_point_2)
         self.assertTrue(test_point_3 == test_point_4)
 
         test_point_2.x = 9.8741
@@ -467,7 +467,7 @@ class TestGeometry(unittest.TestCase):
         test_point_4 /= scalar_6
         
         self.assertTrue(np.allclose(test_point_1.array, np.array([x_1 / scalar_1, y_1 / scalar_1]), _TRANSLATION_TOLERANCE))
-        self.assertTrue(np.allclose(test_point_3.array, np.array([x_3 / scalar_3, y_3/ scalar_3, z_3 / scalar_3]), _TRANSLATION_TOLERANCE))
+        self.assertTrue(np.allclose(test_point_3.array, np.array([x_3 / scalar_3, y_3 / scalar_3, z_3 / scalar_3]), _TRANSLATION_TOLERANCE))
         self.assertTrue(np.allclose(test_point_2.array, np.array([x_1 / scalar_6, y_1 / scalar_6]), _TRANSLATION_TOLERANCE))
         self.assertTrue(np.allclose(test_point_4.array, np.array([x_3 / scalar_6, y_3 / scalar_6, z_3 / scalar_6]), _TRANSLATION_TOLERANCE))
 
@@ -486,21 +486,132 @@ class TestGeometry(unittest.TestCase):
 
     # Rot class:
     # Chordal distance of two rotations (static dist function)
-    # def test_rot_dist_static(self) -> None:
-    #   theta_1 = math.pi / 2
-    #    test_rot_1 = Rot2(theta_1, ODOM, WORLD)
+    def test_rot_dist_static(self) -> None:
+        theta_1 = math.pi / 2
+        test_rot_1 = Rot2(theta_1, ODOM, WORLD)
 
-    #    theta_2 = math.pi / 3
-    #    test_rot_2 = Rot2(theta_2, ODOM, WORLD)
+        theta_2 = math.pi / 3
+        test_rot_2 = Rot2(theta_2, ODOM, WORLD)
 
-    #    self.assertTrue(Rot.dist(test_rot_1, test_rot_1) < _ROTATION_TOLERANCE)
-        # self.assertTrue(Rot.dist(test_rot_1, test_rot_2))
-    #    print(Rot.dist(test_rot_1, test_rot_1.copyInverse()))
+        roll_3 = math.pi
+        pitch_3 = math.pi / 2
+        yaw_3 = math.pi / 4
+        test_rot_3 = Rot3(roll_3, pitch_3, yaw_3, ODOM, WORLD)
+
+        roll_4 = math.pi / 6
+        pitch_4 = math.pi / 3
+        yaw_4 = math.pi / 2
+        test_rot_4 = Rot3(roll_4, pitch_4, yaw_4, ODOM, WORLD)
+
+        # Test if the local frame of the first rotation and the base frame of the second rotation is checked
+        with self.assertRaises(AssertionError):
+            Rot.dist(test_rot_1, test_rot_1.copyInverse())
+        with self.assertRaises(AssertionError):
+            Rot.dist(test_rot_3, test_rot_3.copyInverse())
+
+        self.assertTrue(Rot.dist(test_rot_1, test_rot_1) < _ROTATION_TOLERANCE)
+        self.assertTrue(Rot.dist(test_rot_1, test_rot_2) - np.linalg.norm((test_rot_1.copyInverse() * test_rot_2).log_map) < _ROTATION_TOLERANCE)
+        self.assertTrue(Rot.dist(test_rot_3, test_rot_3) < _ROTATION_TOLERANCE)
+        self.assertTrue(Rot.dist(test_rot_3, test_rot_4) - np.linalg.norm((test_rot_3.copyInverse() * test_rot_4).log_map) < _ROTATION_TOLERANCE)
+        
     # Angular representation (angles funct, abstract)
+    def test_rot_angles(self) -> None:
+        theta_1 = math.pi / 2
+        test_rot_1 = Rot2(theta_1, ODOM, WORLD)
+
+        # According to the implementation of SO3.pi, when pitch = pi/2, yaw = 0
+        # This is because pitch = pi/2 or -pi/2 is the "singularity" of the
+        # RPY angles representation for SO(3); there are infinitely many sets of
+        # RPY angles for a given rotation matrix at those angles
+
+        # Should I create a test case for pitch = pi/2?
+        roll_2 = math.pi
+        pitch_2 = math.pi / 3
+        yaw_2 = math.pi / 4
+        test_rot_2 = Rot3(roll_2, pitch_2, yaw_2, ODOM, WORLD)
+
+        self.assertTrue(isinstance(test_rot_1.angles, float))
+        self.assertTrue(isinstance(test_rot_2.angles, tuple))
+        
+        self.assertTrue(test_rot_1.angles == theta_1)
+        self.assertTrue(test_rot_2.angles == (roll_2, pitch_2, yaw_2))
+
     # Create rotation from array (by_array funct, abstract)
+    def test_rot_by_array(self) -> None:
+        theta_1 = math.pi / 2
+        so2_arr = np.array([theta_1])
+
+        roll_2 = math.pi
+        pitch_2 = math.pi / 3
+        yaw_2 = math.pi / 4
+        so3_arr = np.array([roll_2, pitch_2, yaw_2])
+        so3_tup = (roll_2, pitch_2, yaw_2)
+
+        with self.assertRaises(AssertionError):
+            Rot2.by_array(so3_arr, ODOM, WORLD)
+        with self.assertRaises(AssertionError):
+            Rot3.by_array(so2_arr, ODOM, WORLD)
+        
+        self.assertTrue(Rot2.by_array(so2_arr, ODOM, WORLD).angles - theta_1 < _ROTATION_TOLERANCE)
+        self.assertTrue(Rot3.by_array(so3_arr, ODOM, WORLD).angles == so3_tup)
+
     # Create rotation from matrix (by_matrix funct, abstract)
+    def test_rot_by_matrix(self) -> None:
+        theta_1 = math.pi / 2
+        so2_mat = np.array([[math.cos(theta_1), -1 * math.sin(theta_1)],
+                            [math.sin(theta_1), math.cos(theta_1)]])
+
+        roll_2 = math.pi
+        pitch_2 = math.pi / 3
+        yaw_2 = math.pi / 4
+        so3_arr = (roll_2, pitch_2, yaw_2)
+
+        yaw_2_mat = np.array([[math.cos(yaw_2), -1 * math.sin(yaw_2), 0],
+                              [math.sin(yaw_2), math.cos(yaw_2), 0],
+                              [0, 0, 1]])
+        pitch_2_mat = np.array([[math.cos(pitch_2), 0, math.sin(pitch_2)],
+                                [0, 1, 0],
+                                [-1 * math.sin(pitch_2), 0, math.cos(pitch_2)]])
+        roll_2_mat = np.array([[1, 0, 0],
+                               [0, math.cos(roll_2), -1 * math.sin(roll_2)],
+                               [0, math.sin(roll_2), math.cos(roll_2)]])
+        
+        so3_mat = np.matmul(np.matmul(yaw_2_mat, pitch_2_mat), roll_2_mat)
+
+        with self.assertRaises(AssertionError):
+            Rot2.by_array(so3_mat, ODOM, WORLD)
+        with self.assertRaises(AssertionError):
+            Rot3.by_array(so2_mat, ODOM, WORLD)
+
+        self.assertTrue(Rot2.by_matrix(so2_mat, ODOM, WORLD).angles - theta_1 < _ROTATION_TOLERANCE)
+        self.assertTrue(Rot3.by_matrix(so3_mat, ODOM, WORLD).angles == so3_arr)
+
     # Create rotation from vector (by_exp_map funct, abstract)
+    
     # Deep copy (abstract)
+    def test_rot_copy(self) -> None:
+        theta_1 = math.pi / 2
+        test_rot_1 = Rot2(theta_1, ODOM, WORLD)
+        test_rot_2 = test_rot_1.copy()
+
+        roll_3 = math.pi
+        pitch_3 = math.pi / 3
+        yaw_3 = math.pi / 4
+        test_rot_3 = Rot3(roll_3, pitch_3, yaw_3, ODOM, WORLD)
+        test_rot_4 = test_rot_3.copy()
+
+        self.assertTrue(test_rot_1 == test_rot_2)
+        self.assertTrue(test_rot_3 == test_rot_4)
+
+        test_rot_2.theta = math.pi / 3
+
+        test_rot_4.roll = math.pi / 6
+        test_rot_4.pitch = math.pi
+        test_rot_4.yaw = math.pi / 3
+
+        self.assertFalse(test_rot_1 == test_rot_2)
+        self.assertFalse(test_rot_3 == test_rot_4)
+
     # Deep copy inverse (abstract)
     # Rotate, unrotate, bearing to local, bearing to base (abstract)
 

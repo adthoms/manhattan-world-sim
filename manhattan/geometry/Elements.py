@@ -720,6 +720,21 @@ class Rot3(Rot):
     @property
     def yaw(self) -> float:
         return self.lie_group.to_rpy()[2]
+    
+    @roll.setter
+    def roll(self, roll: float):
+        assert np.isscalar(roll)
+        self._SO = SO3.from_rpy(roll, self.pitch, self.yaw)
+
+    @pitch.setter
+    def pitch(self, pitch: float):
+        assert np.isscalar(pitch)
+        self._SO = SO3.from_rpy(self.roll, pitch, self.yaw)
+
+    @yaw.setter
+    def yaw(self, yaw: float):
+        assert np.isscalar(yaw)
+        self._SO = SO3.from_rpy(self.roll, self.pitch, yaw)
 
     @property
     def angles(self) -> Tuple[float, float, float]:
