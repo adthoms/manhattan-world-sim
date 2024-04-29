@@ -760,7 +760,7 @@ class Rot3(Rot):
     def by_exp_map(
         cls, vector: np.ndarray, local_frame: str, base_frame: str
     ) -> "Rot3":
-        assert isinstance(vector, np.array)
+        assert isinstance(vector, np.ndarray)
         assert len(vector) == 3
         roll, pitch, yaw = SO3.exp(vector).to_rpy()
         return cls(roll, pitch, yaw, local_frame, base_frame)
@@ -856,8 +856,8 @@ class SEPose(ABC):
         assert isinstance(x1, SEPose)
         assert isinstance(x2, SEPose)
         check_same_types(x1, x2)
-        T1 = x1.matrix()
-        T2 = x2.matrix()
+        T1 = x1.matrix
+        T2 = x2.matrix
         return np.linalg.norm(T1 - T2, ord="fro")
 
     @property
@@ -1176,6 +1176,7 @@ class SE2Pose(SEPose):
     ) -> "SE2Pose":
         assert isinstance(point, Point2)
         assert isinstance(rot, Rot2)
+        assert ((rot.local_frame == local_frame) and (rot.base_frame == base_frame))
         return cls(point.x, point.y, rot.theta, local_frame, base_frame)
 
     @classmethod
@@ -1310,6 +1311,7 @@ class SE3Pose(SEPose):
     ) -> "SE3Pose":
         assert isinstance(point, Point3)
         assert isinstance(rot, Rot3)
+        assert ((rot.local_frame == local_frame) and (rot.base_frame == base_frame))
         return cls(
             point.x,
             point.y,
