@@ -35,6 +35,20 @@ def check_same_types(obj1, obj2):
         or (type(obj1), type(obj2)) == (Point3, Point3)
     )
 
+def check_compatible_or_same_types(obj1, obj2):
+    assert(
+        (type(obj1), type(obj2)) == (SE2Pose, SE2Pose)
+        or (type(obj1), type(obj2)) == (SE3Pose, SE3Pose)
+        or (type(obj1), type(obj2)) == (Rot2, Rot2)
+        or (type(obj1), type(obj2)) == (Rot3, Rot3)
+        or (type(obj1), type(obj2)) == (Point2, Point2)
+        or (type(obj1), type(obj2)) == (Point3, Point3)
+        or (type(obj1), type(obj2)) == (SE2Pose, Point2)
+        or (type(obj1), type(obj2)) == (SE3Pose, Point3)
+        or (type(obj1), type(obj2)) == (Rot2, Point2)
+        or (type(obj1), type(obj2)) == (Rot3, Point3)
+    )
+
 
 def none_to_zero(x: Optional[float]) -> float:
     return 0.0 if x is None else x
@@ -1073,7 +1087,7 @@ class SEPose(ABC):
         return dist
 
     def __mul__(self, other):
-        check_compatible_types(self, other)
+        check_compatible_or_same_types(self, other)
         if isinstance(other, SEPose):
             assert self.local_frame == other.base_frame
             T = self.se_group.dot(other.se_group).as_matrix()
