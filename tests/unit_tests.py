@@ -902,6 +902,96 @@ class TestGeometry(unittest.TestCase):
     def test_pose_by_point_and_rotation(self) -> None:
         theta_1 = math.pi / 2
         test_rot_1 = Rot2(theta_1, ODOM, WORLD)
+        test_rot_2 = Rot2(theta_1, WORLD, ODOM)
+
+        roll_3 = math.pi
+        pitch_3 = math.pi / 3
+        yaw_3 = math.pi / 4
+        test_rot_3 = Rot3(roll_3, pitch_3, yaw_3, ODOM, WORLD)
+        test_rot_4 = Rot3(roll_3, pitch_3, yaw_3, WORLD, ODOM)
+
+        x_1 = 42.5123
+        y_1 = 23.4530
+        test_point_1 = Point2(x_1, y_1, ODOM)
+
+        x_2 = 12.1324
+        y_2 = 85.4509
+        z_2 = 76.3453
+        test_point_2 = Point3(x_2, y_2, z_2, ODOM)
+
+        # Ensure points and rotations of differing dimensions cannot be used to construct a pose
+        with self.assertRaises(AssertionError):
+            SE2Pose.by_point_and_rotation(test_point_2, test_rot_1, ODOM, WORLD)
+        with self.assertRaises(AssertionError):
+            SE2Pose.by_point_and_rotation(test_point_1, test_rot_3, ODOM, WORLD)
+        with self.assertRaises(AssertionError):
+            SE3Pose.by_point_and_rotation(test_point_1, test_rot_3, ODOM, WORLD)
+        with self.assertRaises(AssertionError):
+            SE3Pose.by_point_and_rotation(test_point_2, test_rot_1, ODOM, WORLD)
+
+        # Ensure rotations of differing frames than desired cannot be used to construct a pose
+        with self.assertRaises(AssertionError):
+            SE2Pose.by_point_and_rotation(test_point_1, test_rot_2, ODOM, WORLD)
+        with self.assertRaises(AssertionError):
+            SE3Pose.by_point_and_rotation(test_point_2, test_rot_4, ODOM, WORLD)
+
+        self.assertTrue(SE2Pose.by_point_and_rotation(test_point_1, test_rot_1, ODOM, WORLD).point == test_point_1)
+        self.assertTrue(SE2Pose.by_point_and_rotation(test_point_1, test_rot_1, ODOM, WORLD).rot == test_rot_1)
+        self.assertTrue(SE3Pose.by_point_and_rotation(test_point_2, test_rot_3, ODOM, WORLD).point == test_point_2)
+        self.assertTrue(SE3Pose.by_point_and_rotation(test_point_2, test_rot_3, ODOM, WORLD).rot == test_rot_3)
+
+    def test_pose_by_matrix(self) -> None:
+        theta_1 = math.pi / 2
+        so2_mat = np.array([[math.cos(theta_1), -1 * math.sin(theta_1)],
+                            [math.sin(theta_1), math.cos(theta_1)]])
+
+        roll_2 = math.pi
+        pitch_2 = math.pi / 3
+        yaw_2 = math.pi / 4
+
+        yaw_2_mat = np.array([[math.cos(yaw_2), -1 * math.sin(yaw_2), 0],
+                              [math.sin(yaw_2), math.cos(yaw_2), 0],
+                              [0, 0, 1]])
+        pitch_2_mat = np.array([[math.cos(pitch_2), 0, math.sin(pitch_2)],
+                                [0, 1, 0],
+                                [-1 * math.sin(pitch_2), 0, math.cos(pitch_2)]])
+        roll_2_mat = np.array([[1, 0, 0],
+                               [0, math.cos(roll_2), -1 * math.sin(roll_2)],
+                               [0, math.sin(roll_2), math.cos(roll_2)]])
+        
+        so3_mat = np.matmul(np.matmul(yaw_2_mat, pitch_2_mat), roll_2_mat)
+
+        x_1 = 42.5123
+        y_1 = 23.4530
+        trans_arr_1 = np.array([[x_1], [y_1]])
+
+        x_2 = 12.1324
+        y_2 = 85.4509
+        z_2 = 76.3453
+        trans_arr_2 = np.array([[x_2], [y_2], [z_2]])
+
+        se2_mat = np.append(so2_mat, trans_arr_1, axis=1)
+        se3_mat = np.append(so3_mat, trans_arr_2, axis=1)
+        
+        se2_mat = np.r_[se2_mat, [np.array([0, 0, 1])]]
+        se3_mat = np.r_[se3_mat, [np.array([0, 0, 0, 1])]]
+
+        # Ensure matrices of differing dimensions cannot be used to construct a pose
+        with self.assertRaises(AssertionError):
+            SE2Pose.by_matrix(se3_mat, ODOM, WORLD)
+        with self.assertRaises(AssertionError):
+            SE3Pose.by_matrix(se2_mat, ODOM, WORLD)
+
+        self.assertTrue(SE2Pose.by_matrix(se2_mat, ODOM, WORLD).point == Point2(x_1, y_1, ODOM))
+        self.assertTrue(SE2Pose.by_matrix(se2_mat, ODOM, WORLD).rot == Rot2(theta_1, ODOM, WORLD))
+        self.assertTrue(SE3Pose.by_matrix(se3_mat, ODOM, WORLD).point == Point3(x_2, y_2, z_2, ODOM))
+        self.assertTrue(SE3Pose.by_matrix(se3_mat, ODOM, WORLD).rot == Rot3(roll_2, pitch_2, yaw_2, ODOM, WORLD))
+
+    # by_exp_map ?
+
+    def test_pose_copy(self) -> None:
+        theta_1 = math.pi / 2
+        test_rot_1 = Rot2(theta_1, ODOM, WORLD)
 
         roll_2 = math.pi
         pitch_2 = math.pi / 3
@@ -910,27 +1000,78 @@ class TestGeometry(unittest.TestCase):
 
         x_1 = 42.5123
         y_1 = 23.4530
-        test_point_1 = Point2(x_1, y_1, WORLD)
+        test_point_1 = Point2(x_1, y_1, ODOM)
 
         x_2 = 12.1324
         y_2 = 85.4509
         z_2 = 76.3453
-        test_point_2 = Point3(x_2, y_2, z_2, WORLD)
+        test_point_2 = Point3(x_2, y_2, z_2, ODOM)
 
-        # Ensure points and rotations of differing dimensions cannot be used to construct a pose
-        with self.assertRaises(AssertionError):
-            SE2Pose.by_point_and_rotation(test_point_2, test_rot_1, ODOM, WORLD)
-        with self.assertRaises(AssertionError):
-            SE2Pose.by_point_and_rotation(test_point_1, test_rot_2, ODOM, WORLD)
-        with self.assertRaises(AssertionError):
-            SE3Pose.by_point_and_rotation(test_point_1, test_rot_2, ODOM, WORLD)
-        with self.assertRaises(AssertionError):
-            SE3Pose.by_point_and_rotation(test_point_2, test_rot_1, ODOM, WORLD)
+        se2_pose_1 = SE2Pose.by_point_and_rotation(test_point_1, test_rot_1, ODOM, WORLD)
+        se2_pose_2 = se2_pose_1.copy()
 
-        self.assertTrue(SE2Pose.by_point_and_rotation(test_point_1, test_rot_1, ODOM, WORLD).point == test_point_1)
-        self.assertTrue(SE2Pose.by_point_and_rotation(test_point_1, test_rot_1, ODOM, WORLD).rot == test_rot_1)
-        # self.assertTrue(SE3Pose.by_point_and_rotation(test_point_2, test_rot_2, ODOM, WORLD).point == test_point_2)
-        # self.assertTrue(SE3Pose.by_point_and_rotation(test_point_2, test_rot_2, ODOM, WORLD).rot == test_rot_2)
+        se3_pose_1 = SE3Pose.by_point_and_rotation(test_point_2, test_rot_2, ODOM, WORLD)
+        se3_pose_2 = se3_pose_1.copy()
+
+        self.assertTrue(se2_pose_1 == se2_pose_2)
+        self.assertTrue(se3_pose_1 == se3_pose_2)
+
+        # No setter methods to modify poses
+
+    # Deep copy inverse (abstract)
+    def test_pose_copy_inv(self) -> None:
+        theta_1 = math.pi / 2
+        so2_mat = np.array([[math.cos(theta_1), -1 * math.sin(theta_1)],
+                            [math.sin(theta_1), math.cos(theta_1)]])
+
+        roll_2 = math.pi
+        pitch_2 = math.pi / 3
+        yaw_2 = math.pi / 4
+
+        yaw_2_mat = np.array([[math.cos(yaw_2), -1 * math.sin(yaw_2), 0],
+                              [math.sin(yaw_2), math.cos(yaw_2), 0],
+                              [0, 0, 1]])
+        pitch_2_mat = np.array([[math.cos(pitch_2), 0, math.sin(pitch_2)],
+                                [0, 1, 0],
+                                [-1 * math.sin(pitch_2), 0, math.cos(pitch_2)]])
+        roll_2_mat = np.array([[1, 0, 0],
+                               [0, math.cos(roll_2), -1 * math.sin(roll_2)],
+                               [0, math.sin(roll_2), math.cos(roll_2)]])
+        
+        so3_mat = np.matmul(np.matmul(yaw_2_mat, pitch_2_mat), roll_2_mat)
+
+        x_1 = 42.5123
+        y_1 = 23.4530
+        trans_arr_1 = np.array([[x_1], [y_1]])
+
+        x_2 = 12.1324
+        y_2 = 85.4509
+        z_2 = 76.3453
+        trans_arr_2 = np.array([[x_2], [y_2], [z_2]])
+
+        se2_mat = np.append(so2_mat, trans_arr_1, axis=1)
+        se3_mat = np.append(so3_mat, trans_arr_2, axis=1)
+        
+        se2_mat = np.r_[se2_mat, [np.array([0, 0, 1])]]
+        se3_mat = np.r_[se3_mat, [np.array([0, 0, 0, 1])]]
+
+        se2_pose_1 = SE2Pose.by_matrix(se2_mat, ODOM, WORLD)
+        se2_pose_2 = se2_pose_1.copyInverse()
+
+        se3_pose_1 = SE3Pose.by_matrix(se3_mat, ODOM, WORLD)
+        se3_pose_2 = se3_pose_1.copyInverse()
+
+        self.assertFalse(se2_pose_1 == se2_pose_2)
+        self.assertFalse(se3_pose_1 == se3_pose_2)
+
+        self.assertTrue(se2_pose_2 == SE2Pose.by_matrix(np.linalg.inv(se2_mat), WORLD, ODOM))
+        self.assertTrue(se3_pose_2 == SE3Pose.by_matrix(np.linalg.inv(se3_mat), WORLD, ODOM))
+
+    # Range and bearing to point
+    # Transform to
+    # Transform local point to base
+    # Transform base point to local
+    # Distance to pose
 
 
 

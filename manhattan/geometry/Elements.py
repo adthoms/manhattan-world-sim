@@ -1178,7 +1178,7 @@ class SE2Pose(SEPose):
 
     @property
     def point(self) -> Point2:
-        return Point2(self.x, self.y, self.base_frame)
+        return Point2(self.x, self.y, self.local_frame)
 
     @property
     def array(self) -> np.ndarray:
@@ -1245,8 +1245,8 @@ class SE3Pose(SEPose):
         y: float,
         z: float,
         roll: float,
-        yaw: float,
         pitch: float,
+        yaw: float,
         local_frame: str,
         base_frame: str,
     ) -> None:
@@ -1313,7 +1313,7 @@ class SE3Pose(SEPose):
 
     @property
     def point(self) -> Point3:
-        return Point3(self.x, self.y, self.z, self.base_frame)
+        return Point3(self.x, self.y, self.z, self.local_frame)
 
     @property
     def array(self) -> np.ndarray:
