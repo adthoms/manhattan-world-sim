@@ -863,7 +863,7 @@ class TestGeometry(unittest.TestCase):
         test_rot_2 = Rot2(theta_2, ODOM, WORLD)
 
         roll_3 = math.pi
-        pitch_3 = math.pi / 2
+        pitch_3 = math.pi / 3
         yaw_3 = math.pi / 4
         test_rot_3 = Rot3(roll_3, pitch_3, yaw_3, ODOM, WORLD)
 
@@ -935,9 +935,9 @@ class TestGeometry(unittest.TestCase):
         with self.assertRaises(AssertionError):
             SE3Pose.by_point_and_rotation(test_point_2, test_rot_4, ODOM, WORLD)
 
-        self.assertTrue(SE2Pose.by_point_and_rotation(test_point_1, test_rot_1, ODOM, WORLD).point == test_point_1)
+        self.assertTrue(SE2Pose.by_point_and_rotation(test_point_1, test_rot_1, ODOM, WORLD).point == Point2(x_1, y_1, WORLD))
         self.assertTrue(SE2Pose.by_point_and_rotation(test_point_1, test_rot_1, ODOM, WORLD).rot == test_rot_1)
-        self.assertTrue(SE3Pose.by_point_and_rotation(test_point_2, test_rot_3, ODOM, WORLD).point == test_point_2)
+        self.assertTrue(SE3Pose.by_point_and_rotation(test_point_2, test_rot_3, ODOM, WORLD).point == Point3(x_2, y_2, z_2, WORLD))
         self.assertTrue(SE3Pose.by_point_and_rotation(test_point_2, test_rot_3, ODOM, WORLD).rot == test_rot_3)
 
     def test_pose_by_matrix(self) -> None:
@@ -982,9 +982,9 @@ class TestGeometry(unittest.TestCase):
         with self.assertRaises(AssertionError):
             SE3Pose.by_matrix(se2_mat, ODOM, WORLD)
 
-        self.assertTrue(SE2Pose.by_matrix(se2_mat, ODOM, WORLD).point == Point2(x_1, y_1, ODOM))
+        self.assertTrue(SE2Pose.by_matrix(se2_mat, ODOM, WORLD).point == Point2(x_1, y_1, WORLD))
         self.assertTrue(SE2Pose.by_matrix(se2_mat, ODOM, WORLD).rot == Rot2(theta_1, ODOM, WORLD))
-        self.assertTrue(SE3Pose.by_matrix(se3_mat, ODOM, WORLD).point == Point3(x_2, y_2, z_2, ODOM))
+        self.assertTrue(SE3Pose.by_matrix(se3_mat, ODOM, WORLD).point == Point3(x_2, y_2, z_2, WORLD))
         self.assertTrue(SE3Pose.by_matrix(se3_mat, ODOM, WORLD).rot == Rot3(roll_2, pitch_2, yaw_2, ODOM, WORLD))
 
     # by_exp_map ?
@@ -1069,9 +1069,165 @@ class TestGeometry(unittest.TestCase):
 
     # Range and bearing to point
     # Transform to
+    
+
     # Transform local point to base
+    def test_pose_local_point_to_base(self) -> None:
+        theta_1 = math.pi / 2
+        test_rot_1 = Rot2(theta_1, ODOM, WORLD)
+
+        roll_2 = math.pi
+        pitch_2 = math.pi / 3
+        yaw_2 = math.pi / 4
+        test_rot_2 = Rot3(roll_2, pitch_2, yaw_2, ODOM, WORLD)
+
+        x_1 = 42.5123
+        y_1 = 23.4530
+        test_point_1 = Point2(x_1, y_1, WORLD)
+
+        x_2 = 12.0923
+        y_2 = 9.576
+        test_point_2 = Point2(x_2, y_2, ODOM)
+
+        x_3 = 0.1233
+        y_3 = 5.4323
+        test_point_3 = Point2(x_3, y_3, WORLD)
+
+        x_4 = 12.1324
+        y_4 = 85.4509
+        z_4 = 76.3453
+        test_point_4 = Point3(x_4, y_4, z_4, WORLD)
+
+        x_5 = 45.2312
+        y_5 = 71.2356
+        z_5 = 8.8643
+        test_point_5 = Point3(x_5, y_5, z_5, ODOM)
+
+        x_6 = 23.1066
+        y_6 = 81.0921
+        z_6 = 54.0045
+        test_point_6 = Point3(x_6, y_6, z_6, WORLD)
+
+        test_pose_1 = SE2Pose.by_point_and_rotation(test_point_1, test_rot_1, ODOM, WORLD)
+        test_pose_2 = SE3Pose.by_point_and_rotation(test_point_4, test_rot_2, ODOM, WORLD)
+
+        # Check that points of differing dimensions cannot be measured
+        with self.assertRaises(AssertionError):
+            test_pose_1.transform_local_point_to_base(test_point_4)
+        with self.assertRaises(AssertionError):
+            test_pose_2.transform_local_point_to_base(test_point_1)
+        # Check that points in a frame that differs from the pose's local frame cannot be measured
+        with self.assertRaises(AssertionError):
+            test_pose_1.transform_local_point_to_base(test_point_3)
+        with self.assertRaises(AssertionError):
+            test_pose_2.transform_local_point_to_base(test_point_6)
+
+        self.assertTrue(test_pose_1.transform_local_point_to_base(test_point_2) == test_rot_1 * test_point_2 + test_point_1)
+        self.assertTrue(test_pose_2.transform_local_point_to_base(test_point_5) == test_rot_2 * test_point_5 + test_point_4)
+
     # Transform base point to local
+    def test_pose_base_point_to_local(self) -> None:
+        theta_1 = math.pi / 2
+        test_rot_1 = Rot2(theta_1, ODOM, WORLD)
+
+        roll_2 = math.pi
+        pitch_2 = math.pi / 3
+        yaw_2 = math.pi / 4
+        test_rot_2 = Rot3(roll_2, pitch_2, yaw_2, ODOM, WORLD)
+
+        x_1 = 42.5123
+        y_1 = 23.4530
+        test_point_1 = Point2(x_1, y_1, WORLD)
+
+        x_2 = 12.0923
+        y_2 = 9.576
+        test_point_2 = Point2(x_2, y_2, WORLD)
+
+        x_3 = 0.1233
+        y_3 = 5.4323
+        test_point_3 = Point2(x_3, y_3, ODOM)
+
+        x_4 = 12.1324
+        y_4 = 85.4509
+        z_4 = 76.3453
+        test_point_4 = Point3(x_4, y_4, z_4, WORLD)
+
+        x_5 = 45.2312
+        y_5 = 71.2356
+        z_5 = 8.8643
+        test_point_5 = Point3(x_5, y_5, z_5, WORLD)
+
+        x_6 = 23.1066
+        y_6 = 81.0921
+        z_6 = 54.0045
+        test_point_6 = Point3(x_6, y_6, z_6, ODOM)
+
+        test_pose_1 = SE2Pose.by_point_and_rotation(test_point_1, test_rot_1, ODOM, WORLD)
+        test_pose_2 = SE3Pose.by_point_and_rotation(test_point_4, test_rot_2, ODOM, WORLD)
+
+        # Check that points of differing dimensions cannot be measured
+        with self.assertRaises(AssertionError):
+            test_pose_1.transform_base_point_to_local(test_point_4)
+        with self.assertRaises(AssertionError):
+            test_pose_2.transform_base_point_to_local(test_point_1)
+        # Check that points in a frame that differs from the pose's base frame cannot be measured
+        with self.assertRaises(AssertionError):
+            test_pose_1.transform_base_point_to_local(test_point_3)
+        with self.assertRaises(AssertionError):
+            test_pose_2.transform_base_point_to_local(test_point_6)
+
+        self.assertTrue(test_pose_1.transform_base_point_to_local(test_point_2) == test_rot_1.copyInverse() * test_point_2 + test_rot_1.copyInverse() * test_point_1.copyInverse())
+        self.assertTrue(test_pose_2.transform_base_point_to_local(test_point_5) == test_rot_2.copyInverse() * test_point_5 + test_rot_2.copyInverse() * test_point_4.copyInverse())
+    
     # Distance to pose
+    def test_pose_dist_to_pose(self) -> None:
+        theta_1 = math.pi / 2
+        test_rot_1 = Rot2(theta_1, ODOM, WORLD)
+
+        theta_2 = math.pi / 3
+        test_rot_2 = Rot2(theta_2, ODOM, WORLD)
+
+        roll_3 = math.pi
+        pitch_3 = math.pi / 3
+        yaw_3 = math.pi / 4
+        test_rot_3 = Rot3(roll_3, pitch_3, yaw_3, ODOM, WORLD)
+
+        roll_4 = math.pi / 6
+        pitch_4 = math.pi / 3
+        yaw_4 = math.pi / 2
+        test_rot_4 = Rot3(roll_4, pitch_4, yaw_4, ODOM, WORLD)
+
+        x_1 = 42.5123
+        y_1 = 23.4530
+        test_point_1 = Point2(x_1, y_1, ODOM)
+
+        x_2 = 12.0923
+        y_2 = 9.576
+        test_point_2 = Point2(x_2, y_2, ODOM)
+
+        x_3 = 12.1324
+        y_3 = 85.4509
+        z_3 = 76.3453
+        test_point_3 = Point3(x_3, y_3, z_3, ODOM)
+
+        x_4 = 45.2312
+        y_4 = 71.2356
+        z_4 = 8.8643
+        test_point_4 = Point3(x_4, y_4, z_4, ODOM)
+
+        test_pose_1 = SE2Pose.by_point_and_rotation(test_point_1, test_rot_1, ODOM, WORLD)
+        test_pose_2 = SE2Pose.by_point_and_rotation(test_point_2, test_rot_2, ODOM, WORLD)
+        test_pose_3 = SE3Pose.by_point_and_rotation(test_point_3, test_rot_3, ODOM, WORLD)
+        test_pose_4 = SE3Pose.by_point_and_rotation(test_point_4, test_rot_4, ODOM, WORLD)
+
+        # Check that poses of differing dimensions cannot be measured
+        with self.assertRaises(AssertionError):
+            test_pose_1.distance_to_pose(test_pose_3)
+        with self.assertRaises(AssertionError):
+            test_pose_4.distance_to_pose(test_pose_2)
+
+        self.assertTrue(test_pose_1.distance_to_pose(test_pose_2) == test_point_1.distance(test_point_2))
+        self.assertTrue(test_pose_3.distance_to_pose(test_pose_4) == test_point_3.distance(test_point_4))
 
 
 

@@ -1096,7 +1096,7 @@ class SEPose(ABC):
             )
         if isinstance(other, Point):
             assert self.local_frame == other.frame
-            return self.rot * other + self.point
+            return self.rot * other + self.point # Rotating this point will generate a point in the base frame; however, self.point is a point in the local frame
 
     def __imul__(self, other):
         check_same_types(self, other)
@@ -1178,7 +1178,7 @@ class SE2Pose(SEPose):
 
     @property
     def point(self) -> Point2:
-        return Point2(self.x, self.y, self.local_frame)
+        return Point2(self.x, self.y, self.base_frame)
 
     @property
     def array(self) -> np.ndarray:
@@ -1313,7 +1313,7 @@ class SE3Pose(SEPose):
 
     @property
     def point(self) -> Point3:
-        return Point3(self.x, self.y, self.z, self.local_frame)
+        return Point3(self.x, self.y, self.z, self.base_frame)
 
     @property
     def array(self) -> np.ndarray:
