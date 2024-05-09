@@ -1363,7 +1363,7 @@ class SE3Pose(SEPose):
     def by_exp_map(
         cls, vector: np.ndarray, local_frame: str, base_frame: str
     ) -> "SE3Pose":
-        assert isinstance(vector, np.array)
+        assert isinstance(vector, np.ndarray)
         assert len(vector) == 6
         T = SE3.exp(vector)
         x = T.trans[0]
