@@ -1021,6 +1021,8 @@ class SEPose(ABC):
             Union[Tuple[float, float], Tuple[float, Tuple[float, float]]]: (range, bearing).
         """
         check_compatible_types(self, point)
+        # print(self.point)
+        # print(point)
         diff = point - self.point
         dist = diff.norm
         bearing = self.rot.bearing_to_base_frame_point(diff)
@@ -1190,6 +1192,11 @@ class SE2Pose(SEPose):
     ) -> "SE2Pose":
         assert isinstance(point, Point2)
         assert isinstance(rot, Rot2)
+
+        # Original implementation returned point's coordinates in the pose's base frame, regardless of what
+        # frame that the point was originally initialized with. This check ensures that point's frame is
+        # consistent.
+        assert (point.frame == base_frame)
         assert ((rot.local_frame == local_frame) and (rot.base_frame == base_frame))
         return cls(point.x, point.y, rot.theta, local_frame, base_frame)
 
@@ -1199,7 +1206,7 @@ class SE2Pose(SEPose):
     ) -> "SE2Pose":
         assert isinstance(matrix, np.ndarray)
         assert matrix.shape == (3, 3)
-        point = Point2.by_array(matrix[:2, 2], local_frame)
+        point = Point2.by_array(matrix[:2, 2], base_frame)
         rot = Rot2.by_matrix(matrix[:2, :2], local_frame, base_frame)
         return SE2Pose.by_point_and_rotation(point, rot, local_frame, base_frame)
 
@@ -1325,6 +1332,11 @@ class SE3Pose(SEPose):
     ) -> "SE3Pose":
         assert isinstance(point, Point3)
         assert isinstance(rot, Rot3)
+
+        # Original implementation returned point's coordinates in the pose's base frame, regardless of what
+        # frame that the point was originally initialized with. This check ensures that point's frame is
+        # consistent.
+        assert (point.frame == base_frame)
         assert ((rot.local_frame == local_frame) and (rot.base_frame == base_frame))
         return cls(
             point.x,
@@ -1343,7 +1355,7 @@ class SE3Pose(SEPose):
     ) -> "SE3Pose":
         assert isinstance(matrix, np.ndarray)
         assert matrix.shape == (4, 4)
-        point = Point3.by_array(matrix[:3, 3], local_frame)
+        point = Point3.by_array(matrix[:3, 3], base_frame)
         rot = Rot3.by_matrix(matrix[:3, :3], local_frame, base_frame)
         return SE3Pose.by_point_and_rotation(point, rot, local_frame, base_frame)
 
