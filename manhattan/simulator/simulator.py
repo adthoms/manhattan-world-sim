@@ -268,6 +268,8 @@ class ManhattanSimulator:
 
         ### measurement models
         # range measurements
+
+        # Range models do not differ between 2D and 3D
         self._base_range_model = ConstGaussRangeSensor(
             mean=0.0, stddev=self._sim_params.range_stddev
         )
@@ -276,6 +278,8 @@ class ManhattanSimulator:
         odom_cov_x = self._sim_params.odom_x_stddev**2
         odom_cov_y = self._sim_params.odom_y_stddev**2
         odom_cov_theta = self._sim_params.odom_theta_stddev**2
+
+        # GaussOdomSensor can be either 2D or 3D; _base_odometry_model must account for this
         self._base_odometry_model = GaussOdomSensor(
             mean=np.zeros(3),
             covariance=np.diag([odom_cov_x, odom_cov_y, odom_cov_theta]),
@@ -285,6 +289,8 @@ class ManhattanSimulator:
         loop_cov_x = self._sim_params.loop_x_stddev**2
         loop_cov_y = self._sim_params.loop_y_stddev**2
         loop_cov_theta = self._sim_params.loop_theta_stddev**2
+
+        # GaussLoopClosureSensor can be either 2D or 3D; _base_loop_closure_model must account for this
         self._base_loop_closure_model = GaussLoopClosureSensor(
             mean=np.zeros(3),
             covariance=np.diag([loop_cov_x, loop_cov_y, loop_cov_theta]),
@@ -374,7 +380,7 @@ class ManhattanSimulator:
         Args:
             show_gt (bool, optional): whether to show the ground truth. Defaults to False.
         """
-        self._factor_graph.animate_odometry(show_gt=True, pause=0.01)
+        self._factor_graph.animate_odometry(show_gt=True, pause_interval=0.01)
 
     def random_step(self) -> None:
         self._move_robots_randomly()

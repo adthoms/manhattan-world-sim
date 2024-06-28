@@ -48,6 +48,8 @@ class RangeNoiseModel:
 
         return measurement
 
+# Range models do not have a notion of direction, only magnitude. Therefore, these
+# models do not change from 2D to 3D
 
 class ConstantGaussianRangeNoiseModel(RangeNoiseModel):
     """This is a gaussian noise model with a constant mean and standard
