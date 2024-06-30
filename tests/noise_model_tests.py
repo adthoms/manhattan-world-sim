@@ -41,7 +41,7 @@ class TestLoopClosureModel(unittest.TestCase):
         test_rot_1 = Rot2(theta_1, FRAME_1, FRAME_2)
 
         theta_2 = math.pi / 3
-        test_rot_2 = Rot2(theta_2, FRAME_1, FRAME_2)
+        test_rot_2 = Rot2(theta_2, FRAME_2, FRAME_1)
 
         x_1 = 42.5123
         y_1 = 23.4530
@@ -49,10 +49,10 @@ class TestLoopClosureModel(unittest.TestCase):
 
         x_2 = 12.0923
         y_2 = 9.576
-        test_point_2 = Point2(x_2, y_2, FRAME_2)
+        test_point_2 = Point2(x_2, y_2, FRAME_1)
 
         test_pose_1 = SE2Pose.by_point_and_rotation(test_point_1, test_rot_1, FRAME_1, FRAME_2)
-        test_pose_2 = SE2Pose.by_point_and_rotation(test_point_2, test_rot_2, FRAME_1, FRAME_2)
+        test_pose_2 = SE2Pose.by_point_and_rotation(test_point_2, test_rot_2, FRAME_2, FRAME_1)
 
         noisylc2d = lc2d.get_relative_pose_measurement(test_pose_1, test_pose_2, "test", 0)
 
@@ -82,7 +82,7 @@ class TestLoopClosureModel(unittest.TestCase):
         test_rot_4 = Rot3(roll_4, pitch_4, yaw_4, FRAME_1, FRAME_2)
 
         test_pose_3 = SE3Pose.by_point_and_rotation(test_point_3, test_rot_3, FRAME_1, FRAME_2)
-        test_pose_4 = SE3Pose.by_point_and_rotation(test_point_4, test_rot_4, FRAME_1, FRAME_2)
+        test_pose_4 = SE3Pose.by_point_and_rotation(test_point_4, test_rot_4, FRAME_2, FRAME_1)
 
         noisylc3d = lc3d.get_relative_pose_measurement(test_pose_3, test_pose_4, "test", 0)
 
@@ -128,9 +128,8 @@ class TestOdomModel(unittest.TestCase):
         test_pose_3 = SE3Pose.by_point_and_rotation(test_point_3, test_rot_3, FRAME_1, FRAME_2)
 
         noisy_odom_3d_measurement = odom3d.get_odometry_measurement(test_pose_3)
-        print(noisy_odom_2d_measurement)
-        print()
-        print(noisy_odom_3d_measurement)
+        #print(noisy_odom_2d_measurement)
+        #print(noisy_odom_3d_measurement)
 
 class TestRangeModel(unittest.TestCase):
     pass

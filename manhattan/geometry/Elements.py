@@ -118,6 +118,15 @@ class Point(ABC):
         self._y = y
 
     @property
+    def z(self) -> float:
+        return self._z
+    
+    @z.setter
+    @abstractmethod
+    def z(self, z: float) -> None:
+        pass
+
+    @property
     def frame(self) -> str:
         return self._frame
 
@@ -266,6 +275,10 @@ class Point2(Point):
     def __init__(self, x: float, y: float, frame: str) -> None:
         super().__init__(DIM.TWO, x, y, 0.0, frame)
 
+    def z(self, z: float) -> None:
+        assert isinstance(z, float)
+        self._z = 0.0
+
     @property
     def array(self) -> np.ndarray:
         return np.array([self.x, self.y])
@@ -314,11 +327,6 @@ class Point3(Point):
     def __init__(self, x: float, y: float, z: float, frame: str) -> None:
         super().__init__(DIM.THREE, x, y, z, frame)
 
-    @property
-    def z(self) -> float:
-        return self._z
-
-    @z.setter
     def z(self, z: float) -> None:
         assert isinstance(z, float)
         self._z = z

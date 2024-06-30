@@ -145,6 +145,7 @@ class LoopClosure2D(LoopClosure):
         assert isinstance(pose_1, SE2Pose)
         assert isinstance(pose_2, SE2Pose)
         assert isinstance(measured_rel_pose, SE2Pose)
+        assert mean_offset.shape == (3,)
         assert covariance.shape == (3, 3)
         super().__init__(pose_1, pose_2, measured_association, measured_rel_pose, timestamp, mean_offset, covariance)
 
@@ -181,6 +182,7 @@ class LoopClosure3D(LoopClosure):
         assert isinstance(pose_1, SE3Pose)
         assert isinstance(pose_2, SE3Pose)
         assert isinstance(measured_rel_pose, SE3Pose)
+        assert mean_offset.shape == (6,)
         assert covariance.shape == (6, 6)
         super().__init__(pose_1, pose_2, measured_association, measured_rel_pose, timestamp, mean_offset, covariance)
     
