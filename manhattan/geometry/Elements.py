@@ -122,9 +122,9 @@ class Point(ABC):
         return self._z
     
     @z.setter
-    @abstractmethod
     def z(self, z: float) -> None:
-        pass
+        assert isinstance(z, float)
+        self._z = z
 
     @property
     def frame(self) -> str:
@@ -326,10 +326,6 @@ class Point2(Point):
 class Point3(Point):
     def __init__(self, x: float, y: float, z: float, frame: str) -> None:
         super().__init__(DIM.THREE, x, y, z, frame)
-
-    def z(self, z: float) -> None:
-        assert isinstance(z, float)
-        self._z = z
 
     @property
     def array(self) -> np.ndarray:

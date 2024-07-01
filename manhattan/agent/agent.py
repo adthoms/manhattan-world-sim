@@ -7,8 +7,8 @@ from manhattan.noise_models.range_noise_model import RangeNoiseModel
 from manhattan.noise_models.odom_noise_model import OdomNoiseModel
 from manhattan.noise_models.loop_closure_model import LoopClosureModel
 from manhattan.measurement.range_measurement import RangeMeasurement
-from manhattan.measurement.odom_measurement import OdomMeasurement, OdomMeasurement2D, OdomMeasurement3D
-from manhattan.measurement.loop_closure import LoopClosure, LoopClosure2D, LoopClosure3D
+from manhattan.measurement.odom_measurement import OdomMeasurement, OdomMeasurement2, OdomMeasurement3
+from manhattan.measurement.loop_closure import LoopClosure, LoopClosure2, LoopClosure3
 from manhattan.geometry.Elements import Point, SEPose, Point2, SE2Pose, Point3, SE3Pose
 
 
@@ -109,7 +109,7 @@ class Robot(Agent, ABC):
         assert isinstance(odometry_model, OdomNoiseModel)
         assert isinstance(loop_closure_model, LoopClosureModel)
 
-        super(Agent, self).__init__(name, range_model)
+        Agent.__init__(self, name, range_model)
         self._odom_model = odometry_model
         self._loop_closure_model = loop_closure_model
         self._pose = start_pose
@@ -137,12 +137,12 @@ class Robot(Agent, ABC):
     @property
     def heading(self) -> Union[float, Tuple[float, float, float]]:
         """Returns the robot's current heading in radians"""
-        return self.pose.rot.angles()
+        return self.pose.rot.angles
 
     @abstractmethod
     def get_loop_closure_measurement(
         self, other_pose: SEPose, measure_association: str, gt_measure: bool = False
-    ) -> LoopClosure:
+    ) -> Union[LoopClosure2, LoopClosure3]:
         """Gets a loop closure measurement to another pose based on the Robot's
         loop closure model
 
@@ -159,7 +159,7 @@ class Robot(Agent, ABC):
         pass
 
     @abstractmethod
-    def move(self, transform: SEPose, gt_measure: bool) -> OdomMeasurement:
+    def move(self, transform: SEPose, gt_measure: bool) -> Union[OdomMeasurement2, OdomMeasurement3]:
         """Moves the robot by the given transform and returns a noisy odometry
         measurement of the move
 
@@ -178,7 +178,7 @@ class Robot(Agent, ABC):
         """Plots the robot's groundtruth position"""
         pass
         
-class Robot2D(Robot):
+class Robot2(Robot):
     def __init__(
         self,
         name: str,
@@ -193,14 +193,14 @@ class Robot2D(Robot):
         assert isinstance(odometry_model, OdomNoiseModel)
         assert isinstance(loop_closure_model, LoopClosureModel)
 
-        super().__init__(name, range_model)
+        super().__init__(name, start_pose, range_model, odometry_model, loop_closure_model)
         self._odom_model = odometry_model
         self._loop_closure_model = loop_closure_model
         self._pose = start_pose
 
     def get_loop_closure_measurement(
         self, other_pose: SE2Pose, measure_association: str, gt_measure: bool = False
-    ) -> LoopClosure2D:
+    ) -> LoopClosure2:
         """Gets a loop closure measurement to another pose based on the Robot's
         loop closure model
 
@@ -218,7 +218,7 @@ class Robot2D(Robot):
         if gt_measure:
             true_transform = self.pose.transform_to(other_pose)
 
-            return LoopClosure2D(
+            return LoopClosure2(
                 pose_1=self.pose,
                 pose_2=other_pose,
                 measured_association=measure_association,
@@ -231,7 +231,7 @@ class Robot2D(Robot):
             self.pose, other_pose, measure_association, self.timestep
         )
 
-    def move(self, transform: SE2Pose, gt_measure: bool) -> OdomMeasurement2D:
+    def move(self, transform: SE2Pose, gt_measure: bool) -> OdomMeasurement2:
         """Moves the robot by the given transform and returns a noisy odometry
         measurement of the move
 
@@ -253,7 +253,7 @@ class Robot2D(Robot):
         # if gt measure then just fake the noise and return the true transform
         # as the measurement
         if gt_measure:
-            return OdomMeasurement2D(
+            return OdomMeasurement2(
                 transform,
                 transform,
                 self._odom_model._mean,
@@ -284,7 +284,7 @@ class Robot2D(Robot):
         else:
             raise NotImplementedError(f"Unhandled heading: {self.heading}")
 
-class Robot3D(Robot):
+class Robot3(Robot):
     def __init__(
         self,
         name: str,
@@ -299,14 +299,14 @@ class Robot3D(Robot):
         assert isinstance(odometry_model, OdomNoiseModel)
         assert isinstance(loop_closure_model, LoopClosureModel)
 
-        super().__init__(name, range_model)
+        super().__init__(name, start_pose, range_model, odometry_model, loop_closure_model)
         self._odom_model = odometry_model
         self._loop_closure_model = loop_closure_model
         self._pose = start_pose
 
     def get_loop_closure_measurement(
         self, other_pose: SE3Pose, measure_association: str, gt_measure: bool = False
-    ) -> LoopClosure3D:
+    ) -> LoopClosure3:
         """Gets a loop closure measurement to another pose based on the Robot's
         loop closure model
 
@@ -324,7 +324,7 @@ class Robot3D(Robot):
         if gt_measure:
             true_transform = self.pose.transform_to(other_pose)
 
-            return LoopClosure3D(
+            return LoopClosure3(
                 pose_1=self.pose,
                 pose_2=other_pose,
                 measured_association=measure_association,
@@ -337,7 +337,7 @@ class Robot3D(Robot):
             self.pose, other_pose, measure_association, self.timestep
         )
 
-    def move(self, transform: SE3Pose, gt_measure: bool) -> OdomMeasurement3D:
+    def move(self, transform: SE3Pose, gt_measure: bool) -> OdomMeasurement3:
         """Moves the robot by the given transform and returns a noisy odometry
         measurement of the move
 
@@ -359,7 +359,7 @@ class Robot3D(Robot):
         # if gt measure then just fake the noise and return the true transform
         # as the measurement
         if gt_measure:
-            return OdomMeasurement3D(
+            return OdomMeasurement3(
                 transform,
                 transform,
                 self._odom_model._mean,
@@ -370,24 +370,27 @@ class Robot3D(Robot):
         odom_measurement = self._odom_model.get_odometry_measurement(transform)
         return odom_measurement
 
-    # TODO: Implement 3D plotting
     def plot(self) -> None:
         """Plots the robot's groundtruth position"""
 
         cur_position = self.position
 
         heading_tol = 1e-8
-        if abs(self.heading) < heading_tol:
-            return plt.plot(cur_position.x, cur_position.y, "b>", markersize=10)
-        elif abs(self.heading - (np.pi / 2.0)) < heading_tol:
-            return plt.plot(cur_position.x, cur_position.y, "b^", markersize=10)
+        plt.axes(projection='3d')
+        heading_yaw = self.heading[2]
+
+        # Only handles yaw angles of pi/2, pi, -pi/2, and 0
+        if abs(heading_yaw) < heading_tol:
+            return plt.plot(cur_position.x, cur_position.y, cur_position.z, "b>", markersize=10)
+        elif abs(heading_yaw - (np.pi / 2.0)) < heading_tol:
+            return plt.plot(cur_position.x, cur_position.y, cur_position.z, "b^", markersize=10)
         elif (
-            abs(self.heading + np.pi) < heading_tol
-            or abs(self.heading - np.pi) < heading_tol
+            abs(heading_yaw + np.pi) < heading_tol
+            or abs(heading_yaw - np.pi) < heading_tol
         ):
-            return plt.plot(cur_position.x, cur_position.y, "b<", markersize=10)
-        elif abs(self.heading + (np.pi / 2.0)) < heading_tol:
-            return plt.plot(cur_position.x, cur_position.y, "bv", markersize=10)
+            return plt.plot(cur_position.x, cur_position.y, cur_position.z, "b<", markersize=10)
+        elif abs(heading_yaw + (np.pi / 2.0)) < heading_tol:
+            return plt.plot(cur_position.x, cur_position.y, cur_position.z, "bv", markersize=10)
         else:
             raise NotImplementedError(f"Unhandled heading: {self.heading}")
 
@@ -400,7 +403,7 @@ class Beacon(Agent, ABC):
         assert isinstance(position, Point)
         assert isinstance(range_model, RangeNoiseModel)
 
-        super(Agent, self).__init__(name, range_model)
+        Agent.__init__(self, name, range_model)
         self._position = position
 
     def __str__(self):
@@ -419,7 +422,7 @@ class Beacon(Agent, ABC):
         """Plots the beacons's groundtruth position"""
         pass
 
-class Beacon2D(Beacon):
+class Beacon2(Beacon):
     def __init__(
         self, name: str, position: Point2, range_model: RangeNoiseModel
     ) -> None:
@@ -435,7 +438,7 @@ class Beacon2D(Beacon):
         cur_position = self.position
         return plt.plot(cur_position.x, cur_position.y, "g*", markersize=10)
     
-class Beacon3D(Beacon):
+class Beacon3(Beacon):
     def __init__(
         self, name: str, position: Point3, range_model: RangeNoiseModel
     ) -> None:

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 
-from manhattan.measurement.odom_measurement import OdomMeasurement, OdomMeasurement2D, OdomMeasurement3D
+from manhattan.measurement.odom_measurement import OdomMeasurement, OdomMeasurement2, OdomMeasurement3
 from manhattan.geometry.Elements import SEPose, SE2Pose, SE3Pose
 from numpy import ndarray
 from typing import List, Tuple, Union, Optional, overload
@@ -29,7 +29,7 @@ class OdomNoiseModel(ABC):
         )
 
     @abstractmethod
-    def get_odometry_measurement(self, movement: SEPose) -> Union[OdomMeasurement2D, OdomMeasurement3D]:
+    def get_odometry_measurement(self, movement: SEPose) -> Union[OdomMeasurement2, OdomMeasurement3]:
         """Get a noisy odometry measurement from the true odometry.
 
         Args:
@@ -41,7 +41,7 @@ class OdomNoiseModel(ABC):
         pass
 
 
-class GaussianOdom2DNoiseModel(OdomNoiseModel):
+class GaussianOdomNoiseModel2(OdomNoiseModel):
     """
     This is a simple Gaussian noise model for the robot odometry. This assumes
     that the noise is additive gaussian and constant in time and distance moved.
@@ -81,7 +81,7 @@ class GaussianOdom2DNoiseModel(OdomNoiseModel):
     def mean(self):
         return self._mean
 
-    def get_odometry_measurement(self, movement: SE2Pose) -> OdomMeasurement2D:
+    def get_odometry_measurement(self, movement: SE2Pose) -> OdomMeasurement2:
         """Takes the groundtruth movement performed and then perturbs it by
         transformation randomly sampled from a Gaussian distribution and passed
         through the exponential map
@@ -111,11 +111,11 @@ class GaussianOdom2DNoiseModel(OdomNoiseModel):
         # because we're in 2D rotations commute so we don't need to think about
         # the order of operations???
         noisy_odom_measurement = movement * mean_offset * noise_offset
-        return OdomMeasurement2D(
+        return OdomMeasurement2(
             movement, noisy_odom_measurement, self._mean, self._covariance
         )
 
-class GaussianOdom3DNoiseModel(OdomNoiseModel):
+class GaussianOdomNoiseModel3(OdomNoiseModel):
     """
     This is a simple Gaussian noise model for the robot odometry. This assumes
     that the noise is additive gaussian and constant in time and distance moved.
@@ -155,7 +155,7 @@ class GaussianOdom3DNoiseModel(OdomNoiseModel):
     def mean(self):
         return self._mean
 
-    def get_odometry_measurement(self, movement: SE3Pose) -> OdomMeasurement3D:
+    def get_odometry_measurement(self, movement: SE3Pose) -> OdomMeasurement3:
         """Takes the groundtruth movement performed and then perturbs it by
         transformation randomly sampled from a Gaussian distribution and passed
         through the exponential map
@@ -184,6 +184,6 @@ class GaussianOdom3DNoiseModel(OdomNoiseModel):
 
         # What are the order of operations on the multiplication of these poses?
         noisy_odom_measurement = movement * mean_offset * noise_offset
-        return OdomMeasurement3D(
+        return OdomMeasurement3(
             movement, noisy_odom_measurement, self._mean, self._covariance
         )

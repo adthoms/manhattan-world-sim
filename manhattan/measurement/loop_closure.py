@@ -100,7 +100,7 @@ class LoopClosure(ABC):
         """
         returns the delta angles in the measurement model
         """
-        return self.measurement.rot.angles()
+        return self.measurement.rot.angles
 
     # Is the calculation of the translation/rotation precision from the covariance matrix 
     # the same between a Loop Closure Measurement and an Odometry Measurement?
@@ -120,7 +120,7 @@ class LoopClosure(ABC):
         """
         pass
 
-class LoopClosure2D(LoopClosure):
+class LoopClosure2(LoopClosure):
     """
     represents a 2D loop closure between poses
 
@@ -157,7 +157,7 @@ class LoopClosure2D(LoopClosure):
     def rotation_precision(self) -> float:
         return get_measurement_precisions_from_covariance_matrix(self.covariance, matrix_dim=2)[0]
 
-class LoopClosure3D(LoopClosure):
+class LoopClosure3(LoopClosure):
     """
     represents a 3D loop closure between poses
 

@@ -1,7 +1,8 @@
 from abc import abstractmethod
+from typing import Union
 import numpy as np
 
-from manhattan.measurement.loop_closure import LoopClosure
+from manhattan.measurement.loop_closure import LoopClosure, LoopClosure2, LoopClosure3
 from manhattan.geometry.Elements import SEPose, SE2Pose, SE3Pose
 
 
@@ -37,7 +38,7 @@ class LoopClosureModel:
     @abstractmethod
     def get_relative_pose_measurement(
         self, pose_1: SEPose, pose_2: SEPose, association: str, timestamp: int
-    ) -> LoopClosure:
+    ) -> Union[LoopClosure2, LoopClosure3]:
         """Takes a two poses, and returns a loop closure measurement based on
         the relative pose from pose_1 to pose_2 and the determined sensor model.
 
@@ -57,7 +58,7 @@ class LoopClosureModel:
         pass
 
 
-class GaussianLoop2DClosureModel(LoopClosureModel):
+class GaussianLoopClosureModel2(LoopClosureModel):
     """
     This is a simple Gaussian noise model for the robot odometry. This assumes
     that the noise is additive gaussian and constant in time and distance moved.
@@ -91,7 +92,7 @@ class GaussianLoop2DClosureModel(LoopClosureModel):
 
     def get_relative_pose_measurement(
         self, pose_1: SE2Pose, pose_2: SE2Pose, association: str, timestamp: int
-    ) -> LoopClosure:
+    ) -> LoopClosure2:
         """Takes a two poses, gets the relative pose and then perturbs it by
         transformation randomly sampled from a Gaussian distribution and passed
         through the exponential map
@@ -130,7 +131,7 @@ class GaussianLoop2DClosureModel(LoopClosureModel):
         # because we're in 2D rotations commute so we don't need to think about
         # the order of operations???
         noisy_pose_measurement = rel_pose * mean_offset * noise_offset
-        return LoopClosure(
+        return LoopClosure2(
             pose_1=pose_1,
             pose_2=pose_2,
             measured_association=association,
@@ -140,7 +141,7 @@ class GaussianLoop2DClosureModel(LoopClosureModel):
             covariance=self._covariance,
         )
 
-class GaussianLoop3DClosureModel(LoopClosureModel):
+class GaussianLoopClosureModel3(LoopClosureModel):
     """
     This is a simple Gaussian noise model for the robot odometry. This assumes
     that the noise is additive gaussian and constant in time and distance moved.
@@ -174,7 +175,7 @@ class GaussianLoop3DClosureModel(LoopClosureModel):
 
     def get_relative_pose_measurement(
         self, pose_1: SE3Pose, pose_2: SE3Pose, association: str, timestamp: int
-    ) -> LoopClosure:
+    ) -> LoopClosure3:
         """Takes a two poses, gets the relative pose and then perturbs it by
         transformation randomly sampled from a Gaussian distribution and passed
         through the exponential map
@@ -212,7 +213,7 @@ class GaussianLoop3DClosureModel(LoopClosureModel):
 
         # What are the order of operations on the multiplication of these poses?
         noisy_pose_measurement = rel_pose * mean_offset * noise_offset
-        return LoopClosure(
+        return LoopClosure3(
             pose_1=pose_1,
             pose_2=pose_2,
             measured_association=association,

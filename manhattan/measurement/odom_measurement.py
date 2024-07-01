@@ -96,7 +96,7 @@ class OdomMeasurement(ABC):
         """
         returns the delta angles in the measurement model
         """
-        return self.measured_odom.rot.angles()
+        return self.measured_odom.rot.angles
 
     # Is the calculation of the translation/rotation precision from the covariance matrix 
     # the same between a Loop Closure Measurement and an Odometry Measurement?
@@ -111,7 +111,7 @@ class OdomMeasurement(ABC):
     def rotation_precision(self) -> float:
         pass
 
-class OdomMeasurement2D(OdomMeasurement):
+class OdomMeasurement2(OdomMeasurement):
     """
     This class represents a 2D odometry measurement.
     """
@@ -146,9 +146,9 @@ class OdomMeasurement2D(OdomMeasurement):
     def rotation_precision(self) -> float:
         return get_measurement_precisions_from_covariance_matrix(self.covariance, matrix_dim=2)[0]
 
-class OdomMeasurement3D(OdomMeasurement):
+class OdomMeasurement3(OdomMeasurement):
     """
-    This class represents a 2D odometry measurement.
+    This class represents a 3D odometry measurement.
     """
 
     def __init__(
