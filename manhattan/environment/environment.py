@@ -1,11 +1,12 @@
 from copy import deepcopy
+from abc import ABC, abstractmethod
 
 import itertools
 import numpy as np
 from typing import Tuple, List, Union, Optional
 import matplotlib.pyplot as plt  # type: ignore
 
-from manhattan.geometry.Elements import SE2Pose, Point2
+from manhattan.geometry.Elements import Point, Point3, SE2Pose, Point2, SE3Pose, SEPose
 from manhattan.agent.agent import Robot
 from manhattan.utils.sample_utils import choice
 
@@ -34,6 +35,14 @@ def _find_nearest(
     delta = value - arr_val
     return idx, delta, arr_val
 
+VERTEX_TYPES = Union[Tuple[int, int], Tuple[int, int, int]]
+VERTEX_LIST_TYPES = Union[List[Tuple[int, int]], List[Tuple[int, int, int]]]
+COORDINATE_TYPES = Union[Tuple[float, float], Tuple[float, float, float]]
+COORDINATE_LIST_TYPES = Union[List[Tuple[float, float]], List[Tuple[float, float, float]]]
+AREA_TYPES = Union[List[Tuple[int, int]], List[Tuple[int, int, int]]]
+BOUNDS_TYPES = Union[Tuple[float, float, float, float], Tuple[float, float, float, float, float, float]]
+POSE_TYPES = Union[SE2Pose, SE3Pose]
+POINT_TYPES = Union[Point2, Point3]
 
 class ManhattanWorld:
     """
@@ -42,11 +51,13 @@ class ManhattanWorld:
 
     def __init__(
         self,
+        dim: int = 2,
         grid_vertices_shape: tuple = (9, 9),
+        z_steps_to_intersection: int = 1,
         y_steps_to_intersection: int = 1,
         x_steps_to_intersection: int = 1,
         cell_scale: float = 1.0,
-        robot_area: Optional[List[Tuple[int, int]]] = None,
+        robot_area: Optional[AREA_TYPES] = None,
         check_collision: bool = True,
         tol: float = 1e-5,
     ):
@@ -55,6 +66,7 @@ class ManhattanWorld:
         of now the robot feasible area is only rectangular
 
         Args:
+            dim (int, optional): dimension of the world. Defaults to 2.
             grid_vertices_shape (tuple, optional): a tuple defining the shape of
                 grid vertices; note that the vertices follow ij indexing.
                 Defaults to (9, 9).
@@ -65,13 +77,21 @@ class ManhattanWorld:
             check_collision (bool, optional): [description]. Defaults to True.
             tol (float, optional): [description]. Defaults to 1e-5.
         """
-        assert len(grid_vertices_shape) == 2
-        self._num_x_pts, self._num_y_pts = grid_vertices_shape
+        # Assert dimension validity
+        assert dim in [2, 3]
+        assert (dim == 2 and len(grid_vertices_shape) == 2) or (dim == 3 and len(grid_vertices_shape) == 3)
+        if dim == 2: 
+            self._num_x_pts, self._num_y_pts = grid_vertices_shape
+            self._num_z_pts = 0
+        else: 
+            self._num_x_pts, self._num_y_pts, self._num_z_pts = grid_vertices_shape
 
         # have to add one to get the number of rows and columns
         self._num_x_pts += 1
         self._num_y_pts += 1
+        self._num_z_pts += 1
 
+        self._z_steps_to_intersection = z_steps_to_intersection
         self._y_steps_to_intersection = y_steps_to_intersection
         self._x_steps_to_intersection = x_steps_to_intersection
 
@@ -87,11 +107,13 @@ class ManhattanWorld:
         # create grid
         self._grid = np.zeros(grid_vertices_shape, dtype=np.float32)
 
-        # define the grid over which the robot can move
+        # TODO: define the grid over which the robot can move
         self._x_coords = np.arange(self._num_x_pts) * self._scale
         self._y_coords = np.arange(self._num_y_pts) * self._scale
-        self._xv, self._yv = np.meshgrid(self._x_coords, self._y_coords, indexing="ij")
+        self._z_coords = np.arange(self._num_z_pts) * self._scale
+        self._xv, self._yv, self._zv = np.meshgrid(self._x_coords, self._y_coords, self._z_coords, indexing="ij")
 
+        # TODO: Extend robot_area to 3D domain
         if robot_area is not None:
             # ensure a rectangular feasible area for robot
             bl, tr = robot_area
@@ -154,10 +176,12 @@ class ManhattanWorld:
         return self._scale
 
     @property
-    def bounds(self) -> Tuple[float, float, float, float]:
-        return (0.0, 0.0, self._x_coords[-1], self._y_coords[-1])
+    def bounds(self) -> BOUNDS_TYPES:
+        if (self.dim == 2):
+            return (0.0, 0.0, self._x_coords[-1], self._y_coords[-1])
+        return (0.0, 0.0, 0.0, self._x_coords[-1], self._y_coords[-1], self._z_coords[-1])
 
-    def set_robot_area_feasibility(self, area: List[Tuple[int, int]]):
+    def set_robot_area_feasibility(self, area: AREA_TYPES):
         """Sets the feasibility status for the robots as a rectangular area. Anything
         outside of this area will be the inverse of the status.
 
@@ -165,47 +189,51 @@ class ManhattanWorld:
             area (List[Tuple[int, int]]): the feasibility area for robots, denoted by the
                 bottom left and top right vertices.
         """
-        assert self.check_vertex_list_valid(area)
-        assert len(area) == 2
+        if (self.dim == 2):
+            assert self.check_vertex_list_valid(area)
+            assert len(area) == 2
 
-        mask = np.zeros((self._num_x_pts, self._num_y_pts), dtype=bool)
-        bl, tr = area
+            mask = np.zeros((self._num_x_pts, self._num_y_pts), dtype=bool)
+            bl, tr = area
 
-        # set bounds on feasible area as variables
-        self._min_x_idx_feasible = bl[0]
-        self._max_x_idx_feasible = tr[0]
-        self._min_y_idx_feasible = bl[1]
-        self._max_y_idx_feasible = tr[1]
+            # set bounds on feasible area as variables
+            self._min_x_idx_feasible = bl[0]
+            self._max_x_idx_feasible = tr[0]
+            self._min_y_idx_feasible = bl[1]
+            self._max_y_idx_feasible = tr[1]
 
-        self._min_x_coord_feasible = bl[0] * self._scale
-        self._max_x_coord_feasible = tr[0] * self._scale
-        self._min_y_coord_feasible = bl[1] * self._scale
-        self._max_y_coord_feasible = tr[1] * self._scale
+            self._min_x_coord_feasible = bl[0] * self._scale
+            self._max_x_coord_feasible = tr[0] * self._scale
+            self._min_y_coord_feasible = bl[1] * self._scale
+            self._max_y_coord_feasible = tr[1] * self._scale
 
-        # also save a mask for the feasible area
-        mask[bl[0] : tr[0] + 1, bl[1] : tr[1] + 1] = True
-        self._robot_feasibility[mask] = True
-        self._robot_feasibility[np.invert(mask)] = False
+            # also save a mask for the feasible area
+            mask[bl[0] : tr[0] + 1, bl[1] : tr[1] + 1] = True
+            self._robot_feasibility[mask] = True
+            self._robot_feasibility[np.invert(mask)] = False
 
-        # make sure nothing weird happened in recording these feasible values
-        assert (
-            abs(self._min_x_idx_feasible * self._scale - self._min_x_coord_feasible)
-            < self._tol
-        )
-        assert (
-            abs(self._max_x_idx_feasible * self._scale - self._max_x_coord_feasible)
-            < self._tol
-        )
-        assert (
-            abs(self._min_y_idx_feasible * self._scale - self._min_y_coord_feasible)
-            < self._tol
-        )
-        assert (
-            abs(self._max_y_idx_feasible * self._scale - self._max_y_coord_feasible)
-            < self._tol
-        )
+            # make sure nothing weird happened in recording these feasible values
+            assert (
+                abs(self._min_x_idx_feasible * self._scale - self._min_x_coord_feasible)
+                < self._tol
+            )
+            assert (
+                abs(self._max_x_idx_feasible * self._scale - self._max_x_coord_feasible)
+                < self._tol
+            )
+            assert (
+                abs(self._min_y_idx_feasible * self._scale - self._min_y_coord_feasible)
+                < self._tol
+            )
+            assert (
+                abs(self._max_y_idx_feasible * self._scale - self._max_y_coord_feasible)
+                < self._tol
+            )
+        else:
+            # TODO: Extend robot_area to 3D domain
+            pass
 
-    def get_neighboring_vertices(self, vert: Tuple[int, int]) -> List[Tuple[int, int]]:
+    def get_neighboring_vertices(self, vert: VERTEX_TYPES) -> VERTEX_TYPES:
         """gets all neighboring vertices to the vertex at index (i, j). Only
         returns valid indices (not out of bounds)
 
@@ -215,27 +243,31 @@ class ManhattanWorld:
         Returns:
             List[tuple]: list of all neighboring vertices
         """
-        assert self.check_vertex_valid(vert)
-        i, j = vert
-        candidate_vertices = []
+        if (self.dim == 2):
+            assert self.check_vertex_valid(vert)
+            i, j = vert
+            candidate_vertices = []
 
-        # connectivity is based on whether we are at a corner or not
-        if i % self._x_steps_to_intersection == 0:
-            candidate_vertices.append((i, j - 1))
-            candidate_vertices.append((i, j + 1))
-        if j % self._y_steps_to_intersection == 0:
-            candidate_vertices.append((i - 1, j))
-            candidate_vertices.append((i + 1, j))
+            # connectivity is based on whether we are at a corner or not
+            if i % self._x_steps_to_intersection == 0:
+                candidate_vertices.append((i, j - 1))
+                candidate_vertices.append((i, j + 1))
+            if j % self._y_steps_to_intersection == 0:
+                candidate_vertices.append((i - 1, j))
+                candidate_vertices.append((i + 1, j))
 
-        # prune all vertices that are out of bounds
-        vertices_in_bound = [
-            v for v in candidate_vertices if self.vertex_is_in_bounds(v)
-        ]
-        return vertices_in_bound
+            # prune all vertices that are out of bounds
+            vertices_in_bound = [
+                v for v in candidate_vertices if self.vertex_is_in_bounds(v)
+            ]
+            return vertices_in_bound
+        else:
+            # TODO: Extend to 3D domain
+            pass
 
     def get_neighboring_robot_vertices(
-        self, vert: Tuple[int, int]
-    ) -> List[Tuple[int, int]]:
+        self, vert: VERTEX_TYPES
+    ) -> Union[List[Tuple[int, int]], List[Tuple[int, int, int]]]:
         """get all neighboring vertices to the vertex at index (i, j) that are
         feasible for the robot. Only returns valid indices (not out of bounds)
 
@@ -246,22 +278,26 @@ class ManhattanWorld:
             List[Tuple[int, int]]: the list of neighboring vertices that are
                 feasible for the robot
         """
-        assert self.check_vertex_valid(vert)
+        if (self.dim == 2):
+            assert self.check_vertex_valid(vert)
 
-        neighbor_verts = self.get_neighboring_vertices(vert)
-        assert self.check_vertex_list_valid(neighbor_verts)
-        assert 2 <= len(neighbor_verts) <= 4
+            neighbor_verts = self.get_neighboring_vertices(vert)
+            assert self.check_vertex_list_valid(neighbor_verts)
+            assert 2 <= len(neighbor_verts) <= 4
 
-        feasible_neighbor_verts = [
-            v for v in neighbor_verts if self.vertex_is_robot_feasible(v)
-        ]
+            feasible_neighbor_verts = [
+                v for v in neighbor_verts if self.vertex_is_robot_feasible(v)
+            ]
 
-        assert len(feasible_neighbor_verts) <= 4
-        return feasible_neighbor_verts
+            assert len(feasible_neighbor_verts) <= 4
+            return feasible_neighbor_verts
+        else:
+            # TODO: Extend to 3D domain
+            pass
 
     def get_neighboring_robot_vertices_not_behind_robot(
         self, robot: Robot
-    ) -> List[Tuple[Point2, float]]:
+    ) -> Union[List[Tuple[Point2, float]], List[Tuple[Point3, float]]]:
         """get all neighboring vertices to the vertex the robot is at which are
         not behind the given robot
 
@@ -276,29 +312,33 @@ class ManhattanWorld:
         robot_loc = robot.position
         robot_pose = robot.pose
 
-        # get robot vertex
-        robot_vert = self.point2vertex(robot_loc)
-        assert self.check_vertex_valid(robot_vert)
+        if (self.dim == 2):
+            # get robot vertex
+            robot_vert = self.point2vertex(robot_loc)
+            assert self.check_vertex_valid(robot_vert)
 
-        # get neighboring vertices in the robot feasible space
-        neighboring_feasible_vertices = self.get_neighboring_robot_vertices(robot_vert)
-        assert self.check_vertex_list_valid(neighboring_feasible_vertices)
+            # get neighboring vertices in the robot feasible space
+            neighboring_feasible_vertices = self.get_neighboring_robot_vertices(robot_vert)
+            assert self.check_vertex_list_valid(neighboring_feasible_vertices)
 
-        # convert vertices to points
-        neighboring_feasible_pts = [
-            self.vertex2point(v) for v in neighboring_feasible_vertices
-        ]
-        assert len(neighboring_feasible_pts) <= 4
+            # convert vertices to points
+            neighboring_feasible_pts = [
+                self.vertex2point(v) for v in neighboring_feasible_vertices
+            ]
+            assert len(neighboring_feasible_pts) <= 4
 
-        not_behind_pts = []
-        for pt in neighboring_feasible_pts:
-            distance, bearing = robot_pose.range_and_bearing_to_point(pt)
-            if np.abs(bearing) < (np.pi / 2) + self._tol:
-                not_behind_pts.append((pt, bearing))
+            not_behind_pts = []
+            for pt in neighboring_feasible_pts:
+                distance, bearing = robot_pose.range_and_bearing_to_point(pt)
+                if np.abs(bearing) < (np.pi / 2) + self._tol:
+                    not_behind_pts.append((pt, bearing))
 
-        return not_behind_pts
+            return not_behind_pts
+        else:
+            # TODO: Extend to 3D domain
+            pass
 
-    def get_vertex_behind_robot(self, robot: Robot) -> Tuple[Point2, float]:
+    def get_vertex_behind_robot(self, robot: Robot) -> Union[List[Tuple[Point2, float]], List[Tuple[Point3, float]]]:
         """get the vertex that is behind the robot
 
         Args:
@@ -311,27 +351,31 @@ class ManhattanWorld:
         robot_loc = robot.position
         robot_pose = robot.pose
 
-        # get robot vertex
-        robot_vert = self.point2vertex(robot_loc)
-        assert self.check_vertex_valid(robot_vert)
+        if (self.dim == 2):
+            # get robot vertex
+            robot_vert = self.point2vertex(robot_loc)
+            assert self.check_vertex_valid(robot_vert)
 
-        # get neighboring vertices in the robot feasible space
-        neighboring_feasible_vertices = self.get_neighboring_robot_vertices(robot_vert)
-        assert self.check_vertex_list_valid(neighboring_feasible_vertices)
+            # get neighboring vertices in the robot feasible space
+            neighboring_feasible_vertices = self.get_neighboring_robot_vertices(robot_vert)
+            assert self.check_vertex_list_valid(neighboring_feasible_vertices)
 
-        # convert vertices to points
-        neighboring_feasible_pts = [
-            self.vertex2point(v) for v in neighboring_feasible_vertices
-        ]
+            # convert vertices to points
+            neighboring_feasible_pts = [
+                self.vertex2point(v) for v in neighboring_feasible_vertices
+            ]
 
-        for pt in neighboring_feasible_pts:
-            distance, bearing = robot_pose.range_and_bearing_to_point(pt)
-            if np.abs(bearing) > (np.pi / 2) + self._tol:
-                return (pt, bearing)
+            for pt in neighboring_feasible_pts:
+                distance, bearing = robot_pose.range_and_bearing_to_point(pt)
+                if np.abs(bearing) > (np.pi / 2) + self._tol:
+                    return (pt, bearing)
 
-        raise ValueError("No vertex is behind the robot")
+            raise ValueError("No vertex is behind the robot")
+        else:
+            # TODO: Extend to 3D domain
+            pass
 
-    def get_random_robot_pose(self, local_frame: str) -> SE2Pose:
+    def get_random_robot_pose(self, local_frame: str) -> POSE_TYPES:
         """Returns a random, feasible robot pose located on a corner in the
         grid.
 
@@ -340,6 +384,7 @@ class ManhattanWorld:
         Returns:
             SE2Pose: a random, feasible robot pose
         """
+        # TODO: Extend to 3D domain
 
         feasible_x_vals = (self._min_x_coord_feasible < self._x_coords) & (
             self._x_coords < self._max_x_coord_feasible
@@ -374,7 +419,7 @@ class ManhattanWorld:
             base_frame="world",
         )
 
-    def get_random_beacon_point(self, frame: str) -> Optional[Point2]:
+    def get_random_beacon_point(self, frame: str) -> Union[Optional[Point2], Optional[Point3]]:
         """Returns a random beacon point on the grid.
 
         Args:
@@ -384,6 +429,7 @@ class ManhattanWorld:
             Optional[Point2]: a random valid beacon point, None if no position
                 is feasible
         """
+        # TODO: Extend to 3D domain
 
         # * this is also somewhat naive but it works... could revisit this later
 
@@ -412,7 +458,7 @@ class ManhattanWorld:
 
     ###### Coordinate and vertex conversion methods ######
 
-    def coordinate2vertex(self, x: float, y: float) -> Tuple[int, int]:
+    def coordinate2vertex(self, x: float, y: float) -> VERTEX_TYPES:
         """Takes a coordinate and returns the corresponding vertex. Requires the
         coordinate correspond to a valid vertex.
 
@@ -426,6 +472,8 @@ class ManhattanWorld:
         Returns:
             Tuple[int, int]: the corresponding vertex indices
         """
+        # TODO: Extend to 3D domain
+
         i, dx, x_close = _find_nearest(self._x_coords, x)
         j, dy, y_close = _find_nearest(self._y_coords, y)
         if abs(dx) < self._tol and abs(dy) < self._tol:
@@ -436,8 +484,8 @@ class ManhattanWorld:
             )
 
     def coordinates2vertices(
-        self, coords: List[Tuple[int, int]]
-    ) -> List[Tuple[int, int]]:
+        self, coords: VERTEX_LIST_TYPES
+    ) -> VERTEX_LIST_TYPES:
         """Takes in a list of coordinates and returns a list of the respective
         corresponding vertices
 
@@ -447,6 +495,8 @@ class ManhattanWorld:
         Returns:
             List[Tuple[int, int]]: list of vertices
         """
+        # TODO: Extend to 3D domain
+
         assert len(coords) >= 1
         assert all(len(c) == 2 for c in coords)
 
@@ -454,7 +504,7 @@ class ManhattanWorld:
         assert self.check_vertex_list_valid(nearest_vertices)
         return nearest_vertices
 
-    def vertex2coordinate(self, vert: Tuple[int, int]) -> Tuple[float, float]:
+    def vertex2coordinate(self, vert: VERTEX_TYPES) -> COORDINATE_TYPES:
         """Takes a vertex and returns the corresponding coordinates
 
         Args:
@@ -463,14 +513,16 @@ class ManhattanWorld:
         Returns:
             Tuple[float, float]: (x, y) coordinates
         """
+        # TODO: Extend to 3D domain
+
         assert self.check_vertex_valid(vert)
 
         i, j = vert
         return (self._xv[i, j], self._yv[i, j])
 
     def vertices2coordinates(
-        self, vertices: List[Tuple[int, int]]
-    ) -> List[Tuple[float, float]]:
+        self, vertices: VERTEX_LIST_TYPES
+    ) -> COORDINATE_LIST_TYPES:
         """Takes a list of vertices and returns a list of the corresponding coordinates
 
         Args:
@@ -482,7 +534,7 @@ class ManhattanWorld:
         assert self.check_vertex_list_valid(vertices)
         return [self.vertex2coordinate(v) for v in vertices]
 
-    def vertex2point(self, vert: Tuple[int, int]) -> Point2:
+    def vertex2point(self, vert: VERTEX_TYPES) -> POINT_TYPES:
         """Takes a vertex and returns the corresponding point in the world frame
 
         Args:
@@ -491,12 +543,14 @@ class ManhattanWorld:
         Returns:
             Point2: point in the world frame
         """
+        # TODO: Extend to 3D domain
+
         assert self.check_vertex_valid(vert)
 
         x, y = self.vertex2coordinate(vert)
         return Point2(x, y, frame="world")
 
-    def point2vertex(self, point: Point2) -> Tuple[int, int]:
+    def point2vertex(self, point: POINT_TYPES) -> VERTEX_TYPES:
         """Takes a point in the world frame and returns the corresponding
         vertex
 
@@ -513,7 +567,7 @@ class ManhattanWorld:
 
     ####### Check vertex validity #########
 
-    def pose_is_robot_feasible(self, pose: SE2Pose) -> bool:
+    def pose_is_robot_feasible(self, pose: POSE_TYPES) -> bool:
         """Takes in a pose and returns whether the robot is feasible at that
         pose. Checks that rotation is a multiple of pi/2, that the
         position is on a robot feasible point in the grid
@@ -524,6 +578,7 @@ class ManhattanWorld:
         Returns:
             bool: True if the robot is feasible at that pose, False otherwise
         """
+        # TODO: Extend to 3D domain
 
         rotation_is_good = abs(pose.theta % (np.pi / 2.0)) < self._tol
         if not rotation_is_good:
@@ -537,7 +592,7 @@ class ManhattanWorld:
 
         return True
 
-    def position_is_beacon_feasible(self, position: Point2) -> bool:
+    def position_is_beacon_feasible(self, position: POINT_TYPES) -> bool:
         """Takes in a position and returns whether the position is feasible
         for a beacon.
 
@@ -548,10 +603,12 @@ class ManhattanWorld:
             bool: True if the position is feasible for a beacon, False otherwise
         """
 
+        # TODO: Extend to 3D domain
+
         vert = self.coordinate2vertex(position.x, position.y)
         return self.vertex_is_beacon_feasible(vert)
 
-    def vertex_is_beacon_feasible(self, vert: Tuple[int, int]) -> bool:
+    def vertex_is_beacon_feasible(self, vert: VERTEX_TYPES) -> bool:
         """Returns whether the vertex is feasible for beacons.
 
         Args:
@@ -560,12 +617,13 @@ class ManhattanWorld:
         Returns:
             bool: True if vertex is feasible for beacons, False otherwise
         """
+        # TODO: Extend to 3D domain
         assert self.check_vertex_valid(vert)
 
         # if not a robot travelable location then it is good for a beacon
         return not self.vertex_is_robot_feasible(vert)
 
-    def vertex_is_robot_feasible(self, vert: Tuple[int, int]) -> bool:
+    def vertex_is_robot_feasible(self, vert: VERTEX_TYPES) -> bool:
         """Returns whether the vertex is feasible for robot. This checks whether
         the index of the vertex would be on one of the allowed lines the robot
         can travel on and then returns whether this is within the defined
@@ -577,6 +635,7 @@ class ManhattanWorld:
         Returns:
             bool: True if the vertex is feasible for robot, False otherwise
         """
+        # TODO: Extend to 3D domain
         assert self.check_vertex_valid(vert)
 
         i, j = vert
@@ -591,14 +650,15 @@ class ManhattanWorld:
         else:
             return False
 
-    def vertex_is_in_bounds(self, vert: Tuple[int, int]) -> bool:
+    def vertex_is_in_bounds(self, vert: VERTEX_TYPES) -> bool:
+        # TODO: Extend to 3D domain
         assert len(vert) == 2
 
         x_in_bounds = 0 <= vert[0] < self._num_x_pts
         y_in_bounds = 0 <= vert[1] < self._num_y_pts
         return x_in_bounds and y_in_bounds
 
-    def check_vertex_valid(self, vert: Tuple[int, int]):
+    def check_vertex_valid(self, vert: VERTEX_TYPES):
         """Checks that the indices of the vertex are within the bounds of the grid
 
         Args:
@@ -607,23 +667,34 @@ class ManhattanWorld:
         Returns:
             bool: True if the vertex is valid, False otherwise
         """
-        assert len(vert) == 2, f"vert: {vert}, len: {len(vert)}"
-        assert 0 <= vert[0] < self._num_x_pts
-        assert 0 <= vert[1] < self._num_y_pts
+
+        if self.dim == 2:
+            assert len(vert) == 2, f"vert: {vert}, len: {len(vert)}"
+            assert 0 <= vert[0] < self._num_x_pts
+            assert 0 <= vert[1] < self._num_y_pts
+        elif self.dim == 3:
+            assert len(vert) == 3
+            assert 0 <= vert[0] < self._num_x_pts
+            assert 0 <= vert[1] < self._num_y_pts
+            assert 0 <= vert[2] < self._num_z_pts
+        else:
+            raise ValueError(f"Dimension {self.dim} not supported")
         return True
 
-    def check_vertex_list_valid(self, vertices: List[Tuple[int, int]]):
+    def check_vertex_list_valid(self, vertices: AREA_TYPES):
         """Checks that the indices of the vertex list are within the bounds of the grid
 
         Args:
             vertices (List[tuple]): list of vertices
         """
+        # TODO: Extend to 3D domain
         assert all(self.check_vertex_valid(v) for v in vertices)
         return True
 
     ####### visualization #############
 
     def plot_environment(self, ax):
+        # TODO: Extend to 3D domain
         assert self._robot_feasibility.shape == (self._num_x_pts, self._num_y_pts)
 
         # get rows and cols that the robot is allowed to travel on
