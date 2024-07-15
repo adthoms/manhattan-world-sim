@@ -1,7 +1,7 @@
 import sys
+sys.path.append('../')
 
 from matplotlib import pyplot as plt
-sys.path.append('../')
 
 import math
 import unittest

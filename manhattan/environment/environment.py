@@ -79,12 +79,14 @@ class ManhattanWorld:
         """
         # Assert dimension validity
         assert dim in [2, 3]
-        assert (dim == 2 and len(grid_vertices_shape) == 2) or (dim == 3 and len(grid_vertices_shape) == 3)
+        assert dim == len(grid_vertices_shape)
         if dim == 2: 
             self._num_x_pts, self._num_y_pts = grid_vertices_shape
             self._num_z_pts = 0
         else: 
             self._num_x_pts, self._num_y_pts, self._num_z_pts = grid_vertices_shape
+        
+        self.dim = dim
 
         # have to add one to get the number of rows and columns
         self._num_x_pts += 1
@@ -111,7 +113,10 @@ class ManhattanWorld:
         self._x_coords = np.arange(self._num_x_pts) * self._scale
         self._y_coords = np.arange(self._num_y_pts) * self._scale
         self._z_coords = np.arange(self._num_z_pts) * self._scale
-        self._xv, self._yv, self._zv = np.meshgrid(self._x_coords, self._y_coords, self._z_coords, indexing="ij")
+        if (self.dim == 2):
+            self._xv, self._yv = np.meshgrid(self._x_coords, self._y_coords, indexing="ij")
+        elif (self.dim == 3):
+            self._xv, self._yv, self._zv = np.meshgrid(self._x_coords, self._y_coords, self._z_coords, indexing="ij")
 
         # TODO: Extend robot_area to 3D domain
         if robot_area is not None:
@@ -458,7 +463,7 @@ class ManhattanWorld:
 
     ###### Coordinate and vertex conversion methods ######
 
-    def coordinate2vertex(self, x: float, y: float) -> VERTEX_TYPES:
+    def coordinate2vertex(self, x: float, y: float, z: float = 0) -> VERTEX_TYPES:
         """Takes a coordinate and returns the corresponding vertex. Requires the
         coordinate correspond to a valid vertex.
 
@@ -472,19 +477,30 @@ class ManhattanWorld:
         Returns:
             Tuple[int, int]: the corresponding vertex indices
         """
-        # TODO: Extend to 3D domain
-
-        i, dx, x_close = _find_nearest(self._x_coords, x)
-        j, dy, y_close = _find_nearest(self._y_coords, y)
-        if abs(dx) < self._tol and abs(dy) < self._tol:
-            return (i, j)
+        if (self.dim == 2):
+            i, dx, x_close = _find_nearest(self._x_coords, x)
+            j, dy, y_close = _find_nearest(self._y_coords, y)
+            if abs(dx) < self._tol and abs(dy) < self._tol:
+                return (i, j)
+            else:
+                raise ValueError(
+                    f"The input ({str(x)}, {str(y)}) is off grid vertices."
+                )
+        elif (self.dim == 3):
+            i, dx, x_close = _find_nearest(self._x_coords, x)
+            j, dy, y_close = _find_nearest(self._y_coords, y)
+            k, dz, z_close = _find_nearest(self._z_coords, z)
+            if abs(dx) < self._tol and abs(dy) < self._tol and abs(dz) < self._tol:
+                return (i, j, k)
+            else:
+                raise ValueError(
+                    f"The input ({str(x)}, {str(y)}, {str(z)}) is off grid vertices."
+                )
         else:
-            raise ValueError(
-                "The input (" + str(x) + ", " + str(y) + ") is off grid vertices."
-            )
+            raise ValueError(f"Dimension {self.dim} not supported")
 
     def coordinates2vertices(
-        self, coords: VERTEX_LIST_TYPES
+        self, coords: COORDINATE_LIST_TYPES
     ) -> VERTEX_LIST_TYPES:
         """Takes in a list of coordinates and returns a list of the respective
         corresponding vertices
@@ -495,10 +511,9 @@ class ManhattanWorld:
         Returns:
             List[Tuple[int, int]]: list of vertices
         """
-        # TODO: Extend to 3D domain
 
         assert len(coords) >= 1
-        assert all(len(c) == 2 for c in coords)
+        assert all(len(c) == self.dim for c in coords)
 
         nearest_vertices = [self.coordinate2vertex(*c) for c in coords]
         assert self.check_vertex_list_valid(nearest_vertices)
@@ -517,8 +532,19 @@ class ManhattanWorld:
 
         assert self.check_vertex_valid(vert)
 
-        i, j = vert
-        return (self._xv[i, j], self._yv[i, j])
+        if (self.dim == 2):
+            # print("xv: " + str(self._xv))
+            # print("yv: " + str(self._yv))
+            i, j = vert
+            return (self._xv[i, j], self._yv[i, j])
+        elif (self.dim == 3):
+            # print("xv: " + str(self._xv))
+            # print("yv: " + str(self._yv))
+            # print("zv: " + str(self._zv))
+            i, j, k = vert
+            return (self._xv[i, j, k], self._yv[i, j, k], self._zv[i, j, k])
+        else:
+            raise ValueError(f"Dimension {self.dim} not supported")
 
     def vertices2coordinates(
         self, vertices: VERTEX_LIST_TYPES
@@ -543,12 +569,17 @@ class ManhattanWorld:
         Returns:
             Point2: point in the world frame
         """
-        # TODO: Extend to 3D domain
 
         assert self.check_vertex_valid(vert)
 
-        x, y = self.vertex2coordinate(vert)
-        return Point2(x, y, frame="world")
+        if (self.dim == 2):
+            x, y = self.vertex2coordinate(vert)
+            return Point2(float(x), float(y), frame="world")
+        elif (self.dim == 3):
+            x, y, z = self.vertex2coordinate(vert)
+            return Point3(float(x), float(y), float(z), frame="world")
+        else:
+            raise ValueError(f"Dimension {self.dim} not supported")
 
     def point2vertex(self, point: POINT_TYPES) -> VERTEX_TYPES:
         """Takes a point in the world frame and returns the corresponding
@@ -560,10 +591,12 @@ class ManhattanWorld:
         Returns:
             Tuple[int, int]: (i, j) vertex
         """
+
         assert point.frame == "world"
 
-        x, y = point.x, point.y
-        return self.coordinate2vertex(x, y)
+        # z is set to 0 for Point2
+        x, y, z = point.x, point.y, point.z
+        return self.coordinate2vertex(x, y, z)
 
     ####### Check vertex validity #########
 
@@ -578,17 +611,36 @@ class ManhattanWorld:
         Returns:
             bool: True if the robot is feasible at that pose, False otherwise
         """
-        # TODO: Extend to 3D domain
 
-        rotation_is_good = abs(pose.theta % (np.pi / 2.0)) < self._tol
-        if not rotation_is_good:
-            print(f"Rotation is {pose.theta} and not a multiple of pi/2")
-            return False
+        if (self.dim == 2):
+            rotation_is_good = abs(pose.theta % (np.pi / 2.0)) < self._tol
+            if not rotation_is_good:
+                print(f"Rotation is {pose.theta} and not a multiple of pi/2")
+                return False
 
-        vert = self.coordinate2vertex(pose.x, pose.y)
-        if not self.vertex_is_robot_feasible(vert):
-            print(f"Coordinate {pose.x}, {pose.y} from vertex {vert} is not feasible")
-            return False
+            vert = self.coordinate2vertex(pose.x, pose.y)
+            if not self.vertex_is_robot_feasible(vert):
+                print(f"Coordinate {pose.x}, {pose.y} from vertex {vert} is not feasible")
+                return False
+        elif (self.dim == 3):
+            roll, pitch, yaw = pose.rot.angles
+            assert len(pose.rot.angles) == 3
+
+            roll_is_good = abs(roll % (np.pi / 2.0)) < self._tol
+            pitch_is_good = abs(pitch % (np.pi / 2.0)) < self._tol
+            yaw_is_good = abs(yaw % (np.pi / 2.0)) < self._tol
+
+            if not (roll_is_good and pitch_is_good and yaw_is_good):
+                print(f"Rotation is {pose.rot.angles}; not a multiple of pi/2")
+                return False
+
+            vert = self.coordinate2vertex(pose.x, pose.y, pose.z)
+            if not self.vertex_is_robot_feasible(vert):
+                print(f"Coordinate {pose.x}, {pose.y}, {pose.z} from vertex {vert} is not feasible")
+                return False
+        else:
+            raise ValueError(f"Dimension {self.dim} not supported")
+            
 
         return True
 
@@ -635,28 +687,43 @@ class ManhattanWorld:
         Returns:
             bool: True if the vertex is feasible for robot, False otherwise
         """
-        # TODO: Extend to 3D domain
+
         assert self.check_vertex_valid(vert)
 
-        i, j = vert
+        if (self.dim == 2):
+            i, j = vert
 
-        # vertex can only be feasible if on one of the lines defined by the
-        # row/column spacing
-        if (
-            i % self._x_steps_to_intersection == 0
-            or j % self._y_steps_to_intersection == 0
-        ):
-            return self._robot_feasibility[i, j]
-        else:
-            return False
+            # vertex can only be feasible if on one of the lines defined by the
+            # row/column spacing
+            if (
+                i % self._x_steps_to_intersection == 0
+                or j % self._y_steps_to_intersection == 0
+            ):
+                return self._robot_feasibility[i, j]
+            else:
+                return False
+        elif (self.dim == 3):
+            i, j, k = vert
+
+            # TODO: Extend vertex_is_robot_feasible to 3D domain
+            pass
 
     def vertex_is_in_bounds(self, vert: VERTEX_TYPES) -> bool:
-        # TODO: Extend to 3D domain
-        assert len(vert) == 2
+        if (self.dim == 2):
+            assert len(vert) == 2
 
-        x_in_bounds = 0 <= vert[0] < self._num_x_pts
-        y_in_bounds = 0 <= vert[1] < self._num_y_pts
-        return x_in_bounds and y_in_bounds
+            x_in_bounds = 0 <= vert[0] < self._num_x_pts
+            y_in_bounds = 0 <= vert[1] < self._num_y_pts
+            return x_in_bounds and y_in_bounds
+        elif (self.dim == 3):
+            assert len(vert) == 3
+
+            x_in_bounds = 0 <= vert[0] < self._num_x_pts
+            y_in_bounds = 0 <= vert[1] < self._num_y_pts
+            z_in_bounds = 0 <= vert[2] < self._num_z_pts
+            return x_in_bounds and y_in_bounds and z_in_bounds
+        else:
+            raise ValueError(f"Dimension {self.dim} not supported")
 
     def check_vertex_valid(self, vert: VERTEX_TYPES):
         """Checks that the indices of the vertex are within the bounds of the grid
@@ -673,7 +740,7 @@ class ManhattanWorld:
             assert 0 <= vert[0] < self._num_x_pts
             assert 0 <= vert[1] < self._num_y_pts
         elif self.dim == 3:
-            assert len(vert) == 3
+            assert len(vert) == 3, f"vert: {vert}, len: {len(vert)}"
             assert 0 <= vert[0] < self._num_x_pts
             assert 0 <= vert[1] < self._num_y_pts
             assert 0 <= vert[2] < self._num_z_pts
@@ -687,7 +754,6 @@ class ManhattanWorld:
         Args:
             vertices (List[tuple]): list of vertices
         """
-        # TODO: Extend to 3D domain
         assert all(self.check_vertex_valid(v) for v in vertices)
         return True
 
