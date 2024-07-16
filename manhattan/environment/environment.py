@@ -117,46 +117,100 @@ class ManhattanWorld:
             self._xv, self._yv = np.meshgrid(self._x_coords, self._y_coords, indexing="ij")
         elif (self.dim == 3):
             self._xv, self._yv, self._zv = np.meshgrid(self._x_coords, self._y_coords, self._z_coords, indexing="ij")
-
-        # TODO: Extend robot_area to 3D domain
-        if robot_area is not None:
-            # ensure a rectangular feasible area for robot
-            bl, tr = robot_area
-
-            # set bounds on feasible area as variables
-            self._min_x_idx_feasible = bl[0]
-            self._max_x_idx_feasible = tr[0]
-            self._min_y_idx_feasible = bl[1]
-            self._max_y_idx_feasible = tr[1]
-
-            self._min_x_coord_feasible = bl[0] * self._scale
-            self._max_x_coord_feasible = tr[0] * self._scale
-            self._min_y_coord_feasible = bl[1] * self._scale
-            self._max_y_coord_feasible = tr[1] * self._scale
-
-            # also save a mask for the feasible area
-            self._robot_feasibility = np.zeros(
-                (self._num_x_pts, self._num_y_pts), dtype=bool
-            )
-            self._robot_feasibility[bl[0] : tr[0] + 1, bl[1] : tr[1] + 1] = True
         else:
-            # if no area specified, all area is now feasible
+            raise ValueError(f"Dimension {self.dim} not supported")
 
-            # set bounds on feasible area as variables
-            self._min_x_idx_feasible = 0
-            self._max_x_idx_feasible = self._num_x_pts - 1
-            self._min_y_idx_feasible = 0
-            self._max_y_idx_feasible = self._num_y_pts - 1
+        if robot_area is not None:
+            if (self.dim == 2):
+                # ensure a rectangular feasible area for robot
+                bl, tr = robot_area
 
-            self._min_x_coord_feasible = np.min(self._x_coords)
-            self._max_x_coord_feasible = np.max(self._x_coords)
-            self._min_y_coord_feasible = np.min(self._y_coords)
-            self._max_y_coord_feasible = np.max(self._y_coords)
+                # set bounds on feasible area as variables
+                self._min_x_idx_feasible = bl[0]
+                self._max_x_idx_feasible = tr[0]
+                self._min_y_idx_feasible = bl[1]
+                self._max_y_idx_feasible = tr[1]
 
-            # also save a mask for the feasible area
-            self._robot_feasibility = np.ones(
-                (self._num_x_pts, self._num_y_pts), dtype=bool
-            )
+                self._min_x_coord_feasible = bl[0] * self._scale
+                self._max_x_coord_feasible = tr[0] * self._scale
+                self._min_y_coord_feasible = bl[1] * self._scale
+                self._max_y_coord_feasible = tr[1] * self._scale
+
+                # also save a mask for the feasible area
+                self._robot_feasibility = np.zeros(
+                    (self._num_x_pts, self._num_y_pts), dtype=bool
+                )
+                self._robot_feasibility[bl[0] : tr[0] + 1, bl[1] : tr[1] + 1] = True
+            elif (self.dim == 3):
+                # ensure a rectangular prismic volume for robot
+                # blf: bottom left front, trb: top right back
+                blf, trb = robot_area
+
+                # set bounds on feasible area as variables
+                self._min_x_idx_feasible = blf[0]
+                self._max_x_idx_feasible = trb[0]
+                self._min_y_idx_feasible = blf[1]
+                self._max_y_idx_feasible = trb[1]
+                self._min_z_idx_feasible = blf[2]
+                self._max_z_idx_feasible = trb[2]
+
+                self._min_x_coord_feasible = blf[0] * self._scale
+                self._max_x_coord_feasible = trb[0] * self._scale
+                self._min_y_coord_feasible = blf[1] * self._scale
+                self._max_y_coord_feasible = trb[1] * self._scale
+                self._min_z_coord_feasible = blf[2] * self._scale
+                self._max_z_coord_feasible = trb[2] * self._scale
+
+                # also save a mask for the feasible area
+                self._robot_feasibility = np.zeros(
+                    (self._num_x_pts, self._num_y_pts, self._num_z_pts), dtype=bool
+                )
+                self._robot_feasibility[blf[0] : trb[0] + 1, blf[1] : trb[1] + 1, blf[2] : trb[2] + 1] = True
+            else:
+                raise ValueError(f"Dimension {self.dim} not supported")
+        else:
+            if (self.dim == 2):
+                # if no area specified, all area is now feasible
+
+                # set bounds on feasible area as variables
+                self._min_x_idx_feasible = 0
+                self._max_x_idx_feasible = self._num_x_pts - 1
+                self._min_y_idx_feasible = 0
+                self._max_y_idx_feasible = self._num_y_pts - 1
+
+                self._min_x_coord_feasible = np.min(self._x_coords)
+                self._max_x_coord_feasible = np.max(self._x_coords)
+                self._min_y_coord_feasible = np.min(self._y_coords)
+                self._max_y_coord_feasible = np.max(self._y_coords)
+
+                # also save a mask for the feasible area
+                self._robot_feasibility = np.ones(
+                    (self._num_x_pts, self._num_y_pts), dtype=bool
+                )
+            elif (self.dim == 3):
+                # if no area specified, all area is now feasible
+
+                # set bounds on feasible area as variables
+                self._min_x_idx_feasible = 0
+                self._max_x_idx_feasible = self._num_x_pts - 1
+                self._min_y_idx_feasible = 0
+                self._max_y_idx_feasible = self._num_y_pts - 1
+                self._min_z_idx_feasible = 0
+                self._max_z_idx_feasible = self._num_z_pts - 1
+
+                self._min_x_coord_feasible = np.min(self._x_coords)
+                self._max_x_coord_feasible = np.max(self._x_coords)
+                self._min_y_coord_feasible = np.min(self._y_coords)
+                self._max_y_coord_feasible = np.max(self._y_coords)
+                self._min_z_coord_feasible = np.min(self._z_coords)
+                self._max_z_coord_feasible = np.max(self._z_coords)
+
+                # also save a mask for the feasible area
+                self._robot_feasibility = np.ones(
+                    (self._num_x_pts, self._num_y_pts, self._num_z_pts), dtype=bool
+                )
+            else:
+                raise ValueError(f"Dimension {self.dim} not supported")
 
         # make sure nothing weird happened in recording these feasible values
         assert self._x_coords[self._min_x_idx_feasible] == self._min_x_coord_feasible
@@ -164,9 +218,15 @@ class ManhattanWorld:
         assert self._y_coords[self._min_y_idx_feasible] == self._min_y_coord_feasible
         assert self._y_coords[self._max_y_idx_feasible] == self._max_y_coord_feasible
 
+        if (self.dim == 3):
+            assert self._z_coords[self._min_z_idx_feasible] == self._min_z_coord_feasible
+            assert self._z_coords[self._max_z_idx_feasible] == self._max_z_coord_feasible
+
     def __str__(self):
         line = "ManhattanWorld Environment\n"
         line += "Shape: " + self.shape.__repr__() + "\n"
+        if (self.dim == 3):
+            line += f"Height Corner Number: {self.z_steps_to_intersection}\n"
         line += f"Row Corner Number: {self.y_steps_to_intersection}\n"
         line += f"Column Corner Number: {self.x_steps_to_intersection}\n"
         line += f"Cell Scale: {self.cell_scale}\n"
@@ -655,10 +715,14 @@ class ManhattanWorld:
             bool: True if the position is feasible for a beacon, False otherwise
         """
 
-        # TODO: Extend to 3D domain
-
-        vert = self.coordinate2vertex(position.x, position.y)
-        return self.vertex_is_beacon_feasible(vert)
+        if (self.dim == 2):
+            vert = self.coordinate2vertex(position.x, position.y)
+            return self.vertex_is_beacon_feasible(vert)
+        elif (self.dim == 3):
+            vert = self.coordinate2vertex(position.x, position.y, position.z)
+            return self.vertex_is_beacon_feasible(vert)
+        else:
+            raise ValueError(f"Dimension {self.dim} not supported")
 
     def vertex_is_beacon_feasible(self, vert: VERTEX_TYPES) -> bool:
         """Returns whether the vertex is feasible for beacons.
@@ -669,7 +733,6 @@ class ManhattanWorld:
         Returns:
             bool: True if vertex is feasible for beacons, False otherwise
         """
-        # TODO: Extend to 3D domain
         assert self.check_vertex_valid(vert)
 
         # if not a robot travelable location then it is good for a beacon
@@ -705,8 +768,16 @@ class ManhattanWorld:
         elif (self.dim == 3):
             i, j, k = vert
 
-            # TODO: Extend vertex_is_robot_feasible to 3D domain
-            pass
+            # vertex can only be feasible if on one of the lines defined by the
+            # row/column/height spacing
+            if (
+                i % self._x_steps_to_intersection == 0
+                or j % self._y_steps_to_intersection == 0
+                or k % self._z_steps_to_intersection == 0
+            ):
+                return self._robot_feasibility[i, j, k]
+            else:
+                return False
 
     def vertex_is_in_bounds(self, vert: VERTEX_TYPES) -> bool:
         if (self.dim == 2):

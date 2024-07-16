@@ -54,8 +54,83 @@ manhat_2d = ManhattanWorld()
 manhat_3d = ManhattanWorld(dim=3, grid_vertices_shape=(9, 9, 9))
 manhat_scaled_2d = ManhattanWorld(cell_scale = 2.0)
 manhat_scaled_3d = ManhattanWorld(dim=3, grid_vertices_shape=(9, 9, 9), cell_scale = 2.0)
+manhat_area_2d = ManhattanWorld(robot_area=[(1, 1), (5, 5)])
+manhat_area_3d = ManhattanWorld(dim=3, grid_vertices_shape=(9, 9, 9), robot_area=[(1, 1, 1), (5, 5, 5)])
+manhat_intersect_2d = ManhattanWorld(robot_area=[(1, 1), (5, 5)], x_steps_to_intersection=2, y_steps_to_intersection=2)
+manhat_intersect_3d = ManhattanWorld(dim=3, grid_vertices_shape=(9, 9, 9), robot_area=[(1, 1, 1), (5, 5, 5)], x_steps_to_intersection=2, y_steps_to_intersection=2, z_steps_to_intersection=2)
 
 class TestValidity(unittest.TestCase):
+    def test_pose_is_robot_feasible(self):
+        pose_valid_2d = SE2Pose.by_point_and_rotation(Point2(0.0, 0.0, FRAME_2), Rot2(0.0, FRAME_1, FRAME_2), FRAME_1, FRAME_2)
+        pose_valid_3d = SE3Pose.by_point_and_rotation(Point3(0.0, 0.0, 0.0, FRAME_2), Rot3(0.0, 0.0, 0.0, FRAME_1, FRAME_2), FRAME_1, FRAME_2)
+
+        pose_invalid_position_2d = SE2Pose.by_point_and_rotation(Point2(10.0, 10.0, FRAME_2), Rot2(0.0, FRAME_1, FRAME_2), FRAME_1, FRAME_2)
+        pose_invalid_position_3d = SE3Pose.by_point_and_rotation(Point3(10.0, 10.0, 10.0, FRAME_2), Rot3(0.0, 0.0, 0.0, FRAME_1, FRAME_2), FRAME_1, FRAME_2)
+
+        pose_invalid_rot_2d = SE2Pose.by_point_and_rotation(Point2(0.0, 0.0, FRAME_2), Rot2(math.pi/3, FRAME_1, FRAME_2), FRAME_1, FRAME_2)
+        pose_invalid_roll_3d = SE3Pose.by_point_and_rotation(Point3(0.0, 0.0, 0.0, FRAME_2), Rot3(math.pi/3, 0.0, 0.0, FRAME_1, FRAME_2), FRAME_1, FRAME_2)
+        pose_invalid_pitch_3d = SE3Pose.by_point_and_rotation(Point3(0.0, 0.0, 0.0, FRAME_2), Rot3(0.0, math.pi/3, 0.0, FRAME_1, FRAME_2), FRAME_1, FRAME_2)
+        pose_invalid_yaw_3d = SE3Pose.by_point_and_rotation(Point3(0.0, 0.0, 0.0, FRAME_2), Rot3(0.0, 0.0, math.pi/3, FRAME_1, FRAME_2), FRAME_1, FRAME_2)
+
+        # Ensure that invalid rotations are not feasible
+        self.assertFalse(manhat_2d.pose_is_robot_feasible(pose_invalid_rot_2d))
+        self.assertFalse(manhat_3d.pose_is_robot_feasible(pose_invalid_roll_3d))
+        self.assertFalse(manhat_3d.pose_is_robot_feasible(pose_invalid_pitch_3d))
+        self.assertFalse(manhat_3d.pose_is_robot_feasible(pose_invalid_yaw_3d))
+
+        # Ensure that invalid positions are not feasible
+        with self.assertRaises(ValueError):
+            manhat_2d.pose_is_robot_feasible(pose_invalid_position_2d)
+        with self.assertRaises(ValueError):
+            manhat_3d.pose_is_robot_feasible(pose_invalid_position_3d)
+
+        # Ensure that valid poses are feasible
+        self.assertTrue(manhat_2d.pose_is_robot_feasible(pose_valid_2d))
+        self.assertTrue(manhat_3d.pose_is_robot_feasible(pose_valid_3d))
+
+    def test_position_is_beacon_feasible(self):
+        position_2d = Point2(1.0, 1.0, FRAME_2)
+        position_3d = Point3(1.0, 1.0, 1.0, FRAME_2)
+        position_valid_2d = Point2(0.0, 0.0, FRAME_2)
+        position_valid_3d = Point3(0.0, 0.0, 0.0, FRAME_2)
+
+        # Ensure position is invalid if it is within specified robot area
+        self.assertFalse(manhat_area_2d.position_is_beacon_feasible(position_2d))
+        self.assertFalse(manhat_area_3d.position_is_beacon_feasible(position_3d))
+
+        # Ensure position is valid if it is not within specified robot area
+        self.assertTrue(manhat_area_2d.position_is_beacon_feasible(position_valid_2d))
+        self.assertTrue(manhat_area_3d.position_is_beacon_feasible(position_valid_3d))
+
+
+    def test_vertex_is_beacon_feasible(self):
+        # Ensure vertex is invalid if it is within specified robot area
+        self.assertFalse(manhat_area_2d.vertex_is_beacon_feasible((1, 1)))
+        self.assertFalse(manhat_area_3d.vertex_is_beacon_feasible((1, 1, 1)))
+
+        # Ensure vertex is valid if it is not within specified robot area
+        self.assertTrue(manhat_area_2d.vertex_is_beacon_feasible((0, 0)))
+        self.assertTrue(manhat_area_3d.vertex_is_beacon_feasible((0, 0, 0)))
+
+    def test_vertex_is_robot_feasible(self):
+        # Return false if vertex is not within specified robot area
+        self.assertFalse(manhat_area_2d.vertex_is_robot_feasible((0, 0)))
+        self.assertFalse(manhat_area_3d.vertex_is_robot_feasible((0, 0, 0)))
+
+        # Return true if vertex is within specified robot area
+        self.assertTrue(manhat_2d.vertex_is_robot_feasible((1, 1)))
+        self.assertTrue(manhat_3d.vertex_is_robot_feasible((1, 1, 1)))
+
+    def test_vertex_is_in_bounds(self):
+        # Ensure vertex is in bounds
+        self.assertFalse(manhat_2d.vertex_is_in_bounds((10, 10)))
+        self.assertFalse(manhat_3d.vertex_is_in_bounds((10, 10, 10)))
+        
+        self.assertTrue(manhat_2d.vertex_is_in_bounds((1, 1)))
+        self.assertTrue(manhat_3d.vertex_is_in_bounds((1, 1, 1)))
+        self.assertTrue(manhat_scaled_2d.vertex_is_in_bounds((1, 1)))
+        self.assertTrue(manhat_scaled_3d.vertex_is_in_bounds((1, 1, 1)))
+
     def test_check_vertex_valid(self):
         # Ensure only vertices of same dimension are accepted
         with self.assertRaises(AssertionError):
@@ -69,7 +144,7 @@ class TestValidity(unittest.TestCase):
         with self.assertRaises(AssertionError):
             manhat_3d.check_vertex_valid((10, 10, 10))
         
-        # Ensure vertex indices are positive
+        # Ensure vertex indices are non-negative
         with self.assertRaises(AssertionError):
             manhat_2d.check_vertex_valid((-1, -1))
         with self.assertRaises(AssertionError):
