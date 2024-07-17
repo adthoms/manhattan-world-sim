@@ -294,9 +294,53 @@ class ManhattanWorld:
                 abs(self._max_y_idx_feasible * self._scale - self._max_y_coord_feasible)
                 < self._tol
             )
+        elif (self.dim == 3):
+            assert self.check_vertex_list_valid(area)
+            assert len(area) == 3
+
+            mask = np.zeros((self._num_x_pts, self._num_y_pts, self._num_z_pts), dtype=bool)
+            blf, trb = area
+
+            # set bounds on feasible area as variables
+            self._min_x_coord_feasible = blf[0] * self._scale
+            self._max_x_coord_feasible = trb[0] * self._scale
+            self._min_y_coord_feasible = blf[1] * self._scale
+            self._max_y_coord_feasible = trb[1] * self._scale
+            self._min_z_coord_feasible = blf[2] * self._scale
+            self._max_z_coord_feasible = trb[2] * self._scale
+
+            # also save a mask for the feasible area
+            mask[blf[0] : trb[0] + 1, blf[1] : trb[1] + 1, blf[2] : trb[2] + 1] = True
+            self._robot_feasibility[mask] = True
+            self._robot_feasibility[np.invert(mask)] = False
+
+            # make sure nothing weird happened in recording these feasible values
+            assert (
+                abs(self._min_x_idx_feasible * self._scale - self._min_x_coord_feasible)
+                < self._tol
+            )
+            assert (
+                abs(self._max_x_idx_feasible * self._scale - self._max_x_coord_feasible)
+                < self._tol
+            )
+            assert (
+                abs(self._min_y_idx_feasible * self._scale - self._min_y_coord_feasible)
+                < self._tol
+            )
+            assert (
+                abs(self._max_y_idx_feasible * self._scale - self._max_y_coord_feasible)
+                < self._tol
+            )
+            assert (
+                abs(self._min_z_idx_feasible * self._scale - self._min_z_coord_feasible)
+                < self._tol
+            )
+            assert (
+                abs(self._max_z_idx_feasible * self._scale - self._max_z_coord_feasible)
+                < self._tol
+            )
         else:
-            # TODO: Extend robot_area to 3D domain
-            pass
+            raise ValueError(f"Dimension {self.dim} not supported")
 
     def get_neighboring_vertices(self, vert: VERTEX_TYPES) -> VERTEX_TYPES:
         """gets all neighboring vertices to the vertex at index (i, j). Only
@@ -308,8 +352,10 @@ class ManhattanWorld:
         Returns:
             List[tuple]: list of all neighboring vertices
         """
+
+        assert self.check_vertex_valid(vert)
+
         if (self.dim == 2):
-            assert self.check_vertex_valid(vert)
             i, j = vert
             candidate_vertices = []
 
@@ -327,8 +373,26 @@ class ManhattanWorld:
             ]
             return vertices_in_bound
         else:
-            # TODO: Extend to 3D domain
-            pass
+            i, j, k = vert
+            candidate_vertices = []
+
+            # connectivity is based on whether we are at a corner or not
+            # i is on the y-axis, j is on the x-axis, k is on the z-axis
+            if i % self._x_steps_to_intersection == 0:
+                candidate_vertices.append((i, j - 1, k))
+                candidate_vertices.append((i, j + 1, k))
+            if j % self._y_steps_to_intersection == 0:
+                candidate_vertices.append((i - 1, j, k))
+                candidate_vertices.append((i + 1, j, k))
+            if k % self._z_steps_to_intersection == 0:
+                candidate_vertices.append((i, j, k - 1))
+                candidate_vertices.append((i, j, k + 1))
+            
+            # prune all vertices that are out of bounds
+            vertices_in_bound = [
+                v for v in candidate_vertices if self.vertex_is_in_bounds(v)
+            ]
+            return vertices_in_bound
 
     def get_neighboring_robot_vertices(
         self, vert: VERTEX_TYPES
@@ -343,11 +407,12 @@ class ManhattanWorld:
             List[Tuple[int, int]]: the list of neighboring vertices that are
                 feasible for the robot
         """
-        if (self.dim == 2):
-            assert self.check_vertex_valid(vert)
 
-            neighbor_verts = self.get_neighboring_vertices(vert)
-            assert self.check_vertex_list_valid(neighbor_verts)
+        assert self.check_vertex_valid(vert)
+        neighbor_verts = self.get_neighboring_vertices(vert)
+        assert self.check_vertex_list_valid(neighbor_verts)
+
+        if (self.dim == 2):
             assert 2 <= len(neighbor_verts) <= 4
 
             feasible_neighbor_verts = [
@@ -357,12 +422,18 @@ class ManhattanWorld:
             assert len(feasible_neighbor_verts) <= 4
             return feasible_neighbor_verts
         else:
-            # TODO: Extend to 3D domain
-            pass
+            assert 3 <= len(neighbor_verts) <= 6
+
+            feasible_neighbor_verts = [
+                v for v in neighbor_verts if self.vertex_is_robot_feasible(v)
+            ]
+
+            assert len(feasible_neighbor_verts) <= 6
+            return feasible_neighbor_verts
 
     def get_neighboring_robot_vertices_not_behind_robot(
         self, robot: Robot
-    ) -> Union[List[Tuple[Point2, float]], List[Tuple[Point3, float]]]:
+    ) -> Union[List[Tuple[Point2, float]], List[Tuple[Point3, Tuple[float, float]]]]:
         """get all neighboring vertices to the vertex the robot is at which are
         not behind the given robot
 
@@ -400,23 +471,6 @@ class ManhattanWorld:
 
             return not_behind_pts
         else:
-            # TODO: Extend to 3D domain
-            pass
-
-    def get_vertex_behind_robot(self, robot: Robot) -> Union[List[Tuple[Point2, float]], List[Tuple[Point3, float]]]:
-        """get the vertex that is behind the robot
-
-        Args:
-            robot (Robot): the robot
-
-        Returns:
-            Tuple[Point2, float]: the vertex behind the robot
-        """
-        # get robot position
-        robot_loc = robot.position
-        robot_pose = robot.pose
-
-        if (self.dim == 2):
             # get robot vertex
             robot_vert = self.point2vertex(robot_loc)
             assert self.check_vertex_valid(robot_vert)
@@ -430,15 +484,44 @@ class ManhattanWorld:
                 self.vertex2point(v) for v in neighboring_feasible_vertices
             ]
 
+            assert len(neighboring_feasible_pts) <= 6
+            
+            not_behind_pts = []
             for pt in neighboring_feasible_pts:
                 distance, bearing = robot_pose.range_and_bearing_to_point(pt)
-                if np.abs(bearing) > (np.pi / 2) + self._tol:
-                    return (pt, bearing)
+                if np.abs(bearing) < (np.pi / 2) + self._tol:
+                    not_behind_pts.append((pt, bearing))
 
-            raise ValueError("No vertex is behind the robot")
-        else:
-            # TODO: Extend to 3D domain
-            pass
+    def get_vertex_behind_robot(self, robot: Robot) -> Union[List[Tuple[Point2, float]], List[Tuple[Point3, Tuple[float, float]]]]:
+        """get the vertex that is behind the robot
+
+        Args:
+            robot (Robot): the robot
+
+        Returns:
+            Tuple[Point2, float]: the vertex behind the robot
+        """
+        # get robot position
+        robot_loc = robot.position
+        robot_pose = robot.pose
+
+        # get robot vertex
+        robot_vert = self.point2vertex(robot_loc)
+        assert self.check_vertex_valid(robot_vert)
+
+        # get neighboring vertices in the robot feasible space
+        neighboring_feasible_vertices = self.get_neighboring_robot_vertices(robot_vert)
+        assert self.check_vertex_list_valid(neighboring_feasible_vertices)
+
+        # convert vertices to points
+        neighboring_feasible_pts = [
+            self.vertex2point(v) for v in neighboring_feasible_vertices
+        ]
+
+        for pt in neighboring_feasible_pts:
+            distance, bearing = robot_pose.range_and_bearing_to_point(pt)
+            if np.abs(bearing) > (np.pi / 2) + self._tol:
+                return (pt, bearing)
 
     def get_random_robot_pose(self, local_frame: str) -> POSE_TYPES:
         """Returns a random, feasible robot pose located on a corner in the
@@ -451,38 +534,84 @@ class ManhattanWorld:
         """
         # TODO: Extend to 3D domain
 
-        feasible_x_vals = (self._min_x_coord_feasible < self._x_coords) & (
-            self._x_coords < self._max_x_coord_feasible
-        )
-        feasible_y_vals = (self._min_y_coord_feasible < self._y_coords) & (
-            self._y_coords < self._max_y_coord_feasible
-        )
+        if (self.dim == 2):
+            feasible_x_vals = (self._min_x_coord_feasible < self._x_coords) & (
+                self._x_coords < self._max_x_coord_feasible
+            )
+            feasible_y_vals = (self._min_y_coord_feasible < self._y_coords) & (
+                self._y_coords < self._max_y_coord_feasible
+            )
 
-        cornered_x_vals = np.zeros(feasible_x_vals.shape).astype(bool)
-        cornered_y_vals = np.zeros(feasible_y_vals.shape).astype(bool)
-        for i in range(len(cornered_x_vals)):
-            if i % self._x_steps_to_intersection == 0:
-                cornered_x_vals[i] = True
-        for j in range(len(cornered_y_vals)):
-            if j % self._y_steps_to_intersection == 0:
-                cornered_y_vals[j] = True
+            cornered_x_vals = np.zeros(feasible_x_vals.shape).astype(bool)
+            cornered_y_vals = np.zeros(feasible_y_vals.shape).astype(bool)
+            for i in range(len(cornered_x_vals)):
+                if i % self._x_steps_to_intersection == 0:
+                    cornered_x_vals[i] = True
+            for j in range(len(cornered_y_vals)):
+                if j % self._y_steps_to_intersection == 0:
+                    cornered_y_vals[j] = True
 
-        sampleable_x_vals = cornered_x_vals & feasible_x_vals
-        sampleable_y_vals = cornered_y_vals & feasible_y_vals
+            sampleable_x_vals = cornered_x_vals & feasible_x_vals
+            sampleable_y_vals = cornered_y_vals & feasible_y_vals
 
-        x_sample = np.random.choice(self._x_coords[sampleable_x_vals])
-        y_sample = np.random.choice(self._y_coords[sampleable_y_vals])
+            x_sample = np.random.choice(self._x_coords[sampleable_x_vals])
+            y_sample = np.random.choice(self._y_coords[sampleable_y_vals])
 
-        # pick a rotation from 0 to 3/2 pi
-        rotation_sample = np.random.choice(np.linspace(0, (3 / 2) * np.pi, num=4))
+            # pick a rotation from 0 to 3/2 pi
+            rotation_sample = np.random.choice(np.linspace(0, (3 / 2) * np.pi, num=4))
 
-        return SE2Pose(
-            x_sample,
-            y_sample,
-            rotation_sample,
-            local_frame=local_frame,
-            base_frame="world",
-        )
+            return SE2Pose(
+                x_sample,
+                y_sample,
+                rotation_sample,
+                local_frame=local_frame,
+                base_frame="world",
+            )
+        elif (self.dim == 3):
+            feasible_x_vals = (self._min_x_coord_feasible < self._x_coords) & (
+                self._x_coords < self._max_x_coord_feasible
+            )
+            feasible_y_vals = (self._min_y_coord_feasible < self._y_coords) & (
+                self._y_coords < self._max_y_coord_feasible
+            )
+            feasible_z_vals = (self._min_z_coord_feasible < self._z_coords) & (
+                self._z_coords < self._max_z_coord_feasible
+            )
+
+            cornered_x_vals = np.zeros(feasible_x_vals.shape).astype(bool)
+            cornered_y_vals = np.zeros(feasible_y_vals.shape).astype(bool)
+            cornered_z_vals = np.zeros(feasible_z_vals.shape).astype(bool)
+            for i in range(len(cornered_x_vals)):
+                if i % self._x_steps_to_intersection == 0:
+                    cornered_x_vals[i] = True
+            for j in range(len(cornered_y_vals)):
+                if j % self._y_steps_to_intersection == 0:
+                    cornered_y_vals[j] = True
+            for k in range(len(cornered_z_vals)):
+                if k % self._z_steps_to_intersection == 0:
+                    cornered_z_vals[k] = True
+
+            sampleable_x_vals = cornered_x_vals & feasible_x_vals
+            sampleable_y_vals = cornered_y_vals & feasible_y_vals
+            sampleable_z_vals = cornered_z_vals & feasible_z_vals
+
+            x_sample = np.random.choice(self._x_coords[sampleable_x_vals])
+            y_sample = np.random.choice(self._y_coords[sampleable_y_vals])
+            z_sample = np.random.choice(self._z_coords[sampleable_z_vals])
+
+            # pick a rotation from 0 to 3/2 pi
+            rotation_sample = np.random.choice(np.linspace(0, (3 / 2) * np.pi, num=4))
+
+            return SE3Pose(
+                x_sample,
+                y_sample,
+                z_sample,
+                rotation_sample,
+                local_frame=local_frame,
+                base_frame="world",
+            )
+        else:
+            raise ValueError(f"Dimension {self.dim} not supported")
 
     def get_random_beacon_point(self, frame: str) -> Union[Optional[Point2], Optional[Point3]]:
         """Returns a random beacon point on the grid.
@@ -494,32 +623,56 @@ class ManhattanWorld:
             Optional[Point2]: a random valid beacon point, None if no position
                 is feasible
         """
-        # TODO: Extend to 3D domain
 
         # * this is also somewhat naive but it works... could revisit this later
 
-        # get random beacon position by generating all possible coordinates and
-        # then just pruning those that are not feasible for the beacon
-        x_idxs = np.arange(self._num_x_pts)
-        y_idxs = np.arange(self._num_y_pts)
+        if (self.dim == 2):
+            # get random beacon position by generating all possible coordinates and
+            # then just pruning those that are not feasible for the beacon
+            x_idxs = np.arange(self._num_x_pts)
+            y_idxs = np.arange(self._num_y_pts)
 
-        # combination of all possible verts on the grid
-        possible_verts = itertools.product(x_idxs, y_idxs)  # cartesian product
+            # combination of all possible verts on the grid
+            possible_verts = itertools.product(x_idxs, y_idxs)  # cartesian product
 
-        # prune out the infeasible vertices
-        feasible_verts = [
-            vert for vert in possible_verts if self.vertex_is_beacon_feasible(vert)
-        ]
+            # prune out the infeasible vertices
+            feasible_verts = [
+                vert for vert in possible_verts if self.vertex_is_beacon_feasible(vert)
+            ]
 
-        assert len(feasible_verts) > 0, "No feasible beacon positions"
+            assert len(feasible_verts) > 0, "No feasible beacon positions"
 
-        # randomly sample one of the vertices
-        vert_sample = choice(feasible_verts)
-        assert len(vert_sample) == 2
+            # randomly sample one of the vertices
+            vert_sample = choice(feasible_verts)
+            assert len(vert_sample) == 2
 
-        i, j = vert_sample
-        position = Point2(self._xv[i, j], self._yv[i, j], frame=frame)
-        return position
+            i, j = vert_sample
+            position = Point2(self._xv[i, j], self._yv[i, j], frame=frame)
+            return position
+        elif (self.dim == 3):
+            x_idxs = np.arange(self._num_x_pts)
+            y_idxs = np.arange(self._num_y_pts)
+            z_idxs = np.arange(self._num_z_pts)
+
+            # combination of all possible verts on the grid
+            possible_verts = itertools.product(x_idxs, y_idxs, z_idxs)
+
+            # prune out the infeasible vertices
+            feasible_verts = [
+                vert for vert in possible_verts if self.vertex_is_beacon_feasible(vert)
+            ]
+
+            assert len(feasible_verts) > 0, "No feasible beacon positions"
+
+            # randomly sample one of the vertices
+            vert_sample = choice(feasible_verts)
+            assert len(vert_sample) == 3
+
+            i, j, k = vert_sample
+            position = Point3(self._xv[i, j, k], self._yv[i, j, k], self._zv[i, j, k], frame=frame)
+            return position
+        else:
+            raise ValueError(f"Dimension {self.dim} not supported")
 
     ###### Coordinate and vertex conversion methods ######
 

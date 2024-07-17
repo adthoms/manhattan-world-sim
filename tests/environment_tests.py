@@ -59,6 +59,35 @@ manhat_area_3d = ManhattanWorld(dim=3, grid_vertices_shape=(9, 9, 9), robot_area
 manhat_intersect_2d = ManhattanWorld(robot_area=[(1, 1), (5, 5)], x_steps_to_intersection=2, y_steps_to_intersection=2)
 manhat_intersect_3d = ManhattanWorld(dim=3, grid_vertices_shape=(9, 9, 9), robot_area=[(1, 1, 1), (5, 5, 5)], x_steps_to_intersection=2, y_steps_to_intersection=2, z_steps_to_intersection=2)
 
+class TestGetterSetter(unittest.TestCase):
+    def test_set_robot_area_feasibility(self):
+        # Implemented in environment.py, must do unit test
+        pass
+    
+    def test_get_neighboring_vertices(self):
+        # Implemented in environment.py, must do unit test
+        pass
+    
+    def test_get_neighboring_robot_vertices(self):
+        # Implemented in environment.py, must do unit test
+        pass
+    
+    def test_get_neighboring_robot_vertices_not_behind_robot(self):
+        # Implemented in environment.py, must do unit test
+        pass
+
+    def test_get_vertex_behind_robot(self):
+        # Implemented in environment.py, must do unit test
+        pass
+
+    def test_get_random_robot_pose(self):
+        # Implemented in environment.py, must do unit test
+        pass
+
+    def test_get_random_beacon_point(self):
+        # Implemented in environment.py, must do unit test
+        pass
+
 class TestValidity(unittest.TestCase):
     def test_pose_is_robot_feasible(self):
         pose_valid_2d = SE2Pose.by_point_and_rotation(Point2(0.0, 0.0, FRAME_2), Rot2(0.0, FRAME_1, FRAME_2), FRAME_1, FRAME_2)
