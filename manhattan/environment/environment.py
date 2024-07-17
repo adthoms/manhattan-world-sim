@@ -93,6 +93,7 @@ class ManhattanWorld:
         self._num_y_pts += 1
         self._num_z_pts += 1
 
+        # controls when grid lines intersect
         self._z_steps_to_intersection = z_steps_to_intersection
         self._y_steps_to_intersection = y_steps_to_intersection
         self._x_steps_to_intersection = x_steps_to_intersection
@@ -109,7 +110,6 @@ class ManhattanWorld:
         # create grid
         self._grid = np.zeros(grid_vertices_shape, dtype=np.float32)
 
-        # TODO: define the grid over which the robot can move
         self._x_coords = np.arange(self._num_x_pts) * self._scale
         self._y_coords = np.arange(self._num_y_pts) * self._scale
         self._z_coords = np.arange(self._num_z_pts) * self._scale
@@ -296,12 +296,19 @@ class ManhattanWorld:
             )
         elif (self.dim == 3):
             assert self.check_vertex_list_valid(area)
-            assert len(area) == 3
+            assert len(area) == 2
 
             mask = np.zeros((self._num_x_pts, self._num_y_pts, self._num_z_pts), dtype=bool)
             blf, trb = area
 
             # set bounds on feasible area as variables
+            self._min_x_idx_feasible = blf[0]
+            self._max_x_idx_feasible = trb[0]
+            self._min_y_idx_feasible = blf[1]
+            self._max_y_idx_feasible = trb[1]
+            self._min_z_idx_feasible = blf[2]
+            self._max_z_idx_feasible = trb[2]
+
             self._min_x_coord_feasible = blf[0] * self._scale
             self._max_x_coord_feasible = trb[0] * self._scale
             self._min_y_coord_feasible = blf[1] * self._scale

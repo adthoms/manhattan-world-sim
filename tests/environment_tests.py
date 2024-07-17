@@ -3,6 +3,7 @@ sys.path.append('../')
 
 import math
 import unittest
+import numpy as np
 
 from manhattan.geometry.Elements import Point, Point2, Point3, Rot, Rot2, Rot3, SEPose, SE2Pose, SE3Pose
 from manhattan.environment.environment import ManhattanWorld
@@ -61,16 +62,73 @@ manhat_intersect_3d = ManhattanWorld(dim=3, grid_vertices_shape=(9, 9, 9), robot
 
 class TestGetterSetter(unittest.TestCase):
     def test_set_robot_area_feasibility(self):
-        # Implemented in environment.py, must do unit test
-        pass
+        # Test 2D robot area feasibility
+        feasible_area_2d = [(1, 1), (5, 5)]
+        full_grid_2d = (9, 9)
+
+        manhat_robot_area_2d = ManhattanWorld(grid_vertices_shape=full_grid_2d)
+        bl, tr = feasible_area_2d
+        mask_2d = np.zeros((full_grid_2d[0] + 1, full_grid_2d[1] + 1), dtype=bool)
+        mask_2d[bl[0] : tr[0] + 1, bl[1] : tr[1] + 1] = True
+        manhat_robot_area_2d.set_robot_area_feasibility(feasible_area_2d)
+
+        # Test 3D robot area feasibility
+        feasible_area_3d = [(1, 1, 1), (5, 5, 5)]
+        full_grid_3d = (9, 9, 9)
+
+        manhat_robot_area_3d = ManhattanWorld(dim=3, grid_vertices_shape=full_grid_3d)
+        blf, trb = feasible_area_3d
+        mask_3d = np.zeros((full_grid_3d[0] + 1, full_grid_3d[1] + 1, full_grid_3d[2] + 1), dtype=bool)
+        mask_3d[blf[0] : trb[0] + 1, blf[1] : trb[1] + 1, blf[2] : trb[2] + 1] = True
+        manhat_robot_area_3d.set_robot_area_feasibility(feasible_area_3d)
+
+        # Test scaled 2D robot area feasibility
+        manhat_scaled_robot_area_2d = ManhattanWorld(cell_scale = 2.0, grid_vertices_shape=full_grid_2d)
+        manhat_scaled_robot_area_2d.set_robot_area_feasibility(feasible_area_2d)
+
+        # Test scaled 3D robot area feasibility
+        manhat_scaled_robot_area_3d = ManhattanWorld(dim=3, grid_vertices_shape=full_grid_3d, cell_scale = 2.0)
+        manhat_scaled_robot_area_3d.set_robot_area_feasibility(feasible_area_3d)
+
+        # Test robot feasibility area against expected mask
+        self.assertTrue(np.array_equal(manhat_robot_area_2d._robot_feasibility, mask_2d))
+        self.assertTrue(np.array_equal(manhat_scaled_robot_area_2d._robot_feasibility, mask_2d))
+        self.assertTrue(np.array_equal(manhat_robot_area_3d._robot_feasibility, mask_3d))
+        self.assertTrue(np.array_equal(manhat_scaled_robot_area_3d._robot_feasibility, mask_3d))
     
     def test_get_neighboring_vertices(self):
-        # Implemented in environment.py, must do unit test
-        pass
+        test_vertex_2d = (1, 1)
+        test_vertex_3d = (1, 1, 1)
+
+        # Test 2D neighboring vertices
+        neighbors_2d = [(0, 1), (1, 0), (2, 1), (1, 2)]
+        sorted_neighbors_2d = sorted(neighbors_2d, key=lambda x: x[0])
+        sorted_manhat_neighbors_2d = sorted(manhat_2d.get_neighboring_vertices(test_vertex_2d), key=lambda x: x[0])
+
+        # Test 3D neighboring vertices
+        neighbors_3d = [(0, 1, 1), (1, 0, 1), (1, 1, 0), (1, 1, 2), (1, 2, 1), (2, 1, 1)]
+        sorted_neighbors_3d = sorted(neighbors_3d, key=lambda x: (x[0], x[1]))
+        sorted_manhat_neighbors_3d = sorted(manhat_3d.get_neighboring_vertices(test_vertex_3d), key=lambda x: (x[0], x[1]))
+
+        self.assertTrue(np.array_equal(sorted_neighbors_2d, sorted_manhat_neighbors_2d))
+        self.assertTrue(np.array_equal(sorted_neighbors_3d, sorted_manhat_neighbors_3d))
     
     def test_get_neighboring_robot_vertices(self):
-        # Implemented in environment.py, must do unit test
-        pass
+        test_vertex_2d = (1, 1)
+        test_vertex_3d = (1, 1, 1)
+
+        # Test 2D neighboring vertices
+        neighbors_2d = [(2, 1), (1, 2)]
+        sorted_neighbors_2d = sorted(neighbors_2d, key=lambda x: x[0])
+        sorted_manhat_neighbors_2d = sorted(manhat_area_2d.get_neighboring_robot_vertices(test_vertex_2d), key=lambda x: x[0])
+
+        # Test 3D neighboring vertices
+        neighbors_3d = [(1, 1, 2), (1, 2, 1), (2, 1, 1)]
+        sorted_neighbors_3d = sorted(neighbors_3d, key=lambda x: (x[0], x[1]))
+        sorted_manhat_neighbors_3d = sorted(manhat_area_3d.get_neighboring_robot_vertices(test_vertex_3d), key=lambda x: (x[0], x[1]))
+        
+        self.assertTrue(np.array_equal(sorted_neighbors_2d, sorted_manhat_neighbors_2d))
+        self.assertTrue(np.array_equal(sorted_neighbors_3d, sorted_manhat_neighbors_3d))
     
     def test_get_neighboring_robot_vertices_not_behind_robot(self):
         # Implemented in environment.py, must do unit test
