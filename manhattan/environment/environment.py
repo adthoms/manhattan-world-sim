@@ -6,7 +6,7 @@ import numpy as np
 from typing import Tuple, List, Union, Optional
 import matplotlib.pyplot as plt  # type: ignore
 
-from manhattan.geometry.Elements import Point, Point3, SE2Pose, Point2, SE3Pose, SEPose
+from manhattan.geometry.Elements import Point, Point3, SE2Pose, Point2, SE3Pose, SEPose, DIM
 from manhattan.agent.agent import Robot
 from manhattan.utils.sample_utils import choice
 
@@ -51,8 +51,8 @@ class ManhattanWorld:
 
     def __init__(
         self,
-        dim: int = 2,
-        grid_vertices_shape: tuple = (9, 9),
+        dim: DIM = DIM.TWO,
+        grid_vertices_shape: tuple = None,
         z_steps_to_intersection: int = 1,
         y_steps_to_intersection: int = 1,
         x_steps_to_intersection: int = 1,
@@ -78,9 +78,9 @@ class ManhattanWorld:
             tol (float, optional): [description]. Defaults to 1e-5.
         """
         # Assert dimension validity
-        assert dim in [2, 3]
-        assert dim == len(grid_vertices_shape)
-        if dim == 2: 
+        assert dim in [DIM.TWO, DIM.THREE]
+        if dim == DIM.TWO:
+            assert len(grid_vertices_shape) == 2
             self._num_x_pts, self._num_y_pts = grid_vertices_shape
             self._num_z_pts = 0
         else: 
@@ -113,15 +113,13 @@ class ManhattanWorld:
         self._x_coords = np.arange(self._num_x_pts) * self._scale
         self._y_coords = np.arange(self._num_y_pts) * self._scale
         self._z_coords = np.arange(self._num_z_pts) * self._scale
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             self._xv, self._yv = np.meshgrid(self._x_coords, self._y_coords, indexing="ij")
-        elif (self.dim == 3):
-            self._xv, self._yv, self._zv = np.meshgrid(self._x_coords, self._y_coords, self._z_coords, indexing="ij")
         else:
-            raise ValueError(f"Dimension {self.dim} not supported")
+            self._xv, self._yv, self._zv = np.meshgrid(self._x_coords, self._y_coords, self._z_coords, indexing="ij")
 
         if robot_area is not None:
-            if (self.dim == 2):
+            if (self.dim == DIM.TWO):
                 # ensure a rectangular feasible area for robot
                 bl, tr = robot_area
 
@@ -141,7 +139,7 @@ class ManhattanWorld:
                     (self._num_x_pts, self._num_y_pts), dtype=bool
                 )
                 self._robot_feasibility[bl[0] : tr[0] + 1, bl[1] : tr[1] + 1] = True
-            elif (self.dim == 3):
+            else:
                 # ensure a rectangular prismic volume for robot
                 # blf: bottom left front, trb: top right back
                 blf, trb = robot_area
@@ -166,10 +164,8 @@ class ManhattanWorld:
                     (self._num_x_pts, self._num_y_pts, self._num_z_pts), dtype=bool
                 )
                 self._robot_feasibility[blf[0] : trb[0] + 1, blf[1] : trb[1] + 1, blf[2] : trb[2] + 1] = True
-            else:
-                raise ValueError(f"Dimension {self.dim} not supported")
         else:
-            if (self.dim == 2):
+            if (self.dim == DIM.TWO):
                 # if no area specified, all area is now feasible
 
                 # set bounds on feasible area as variables
@@ -187,7 +183,7 @@ class ManhattanWorld:
                 self._robot_feasibility = np.ones(
                     (self._num_x_pts, self._num_y_pts), dtype=bool
                 )
-            elif (self.dim == 3):
+            else:
                 # if no area specified, all area is now feasible
 
                 # set bounds on feasible area as variables
@@ -209,8 +205,6 @@ class ManhattanWorld:
                 self._robot_feasibility = np.ones(
                     (self._num_x_pts, self._num_y_pts, self._num_z_pts), dtype=bool
                 )
-            else:
-                raise ValueError(f"Dimension {self.dim} not supported")
 
         # make sure nothing weird happened in recording these feasible values
         assert self._x_coords[self._min_x_idx_feasible] == self._min_x_coord_feasible
@@ -218,14 +212,14 @@ class ManhattanWorld:
         assert self._y_coords[self._min_y_idx_feasible] == self._min_y_coord_feasible
         assert self._y_coords[self._max_y_idx_feasible] == self._max_y_coord_feasible
 
-        if (self.dim == 3):
+        if (self.dim == DIM.THREE):
             assert self._z_coords[self._min_z_idx_feasible] == self._min_z_coord_feasible
             assert self._z_coords[self._max_z_idx_feasible] == self._max_z_coord_feasible
 
     def __str__(self):
         line = "ManhattanWorld Environment\n"
         line += "Shape: " + self.shape.__repr__() + "\n"
-        if (self.dim == 3):
+        if (self.dim == DIM.THREE):
             line += f"Height Corner Number: {self.z_steps_to_intersection}\n"
         line += f"Row Corner Number: {self.y_steps_to_intersection}\n"
         line += f"Column Corner Number: {self.x_steps_to_intersection}\n"
@@ -242,7 +236,7 @@ class ManhattanWorld:
 
     @property
     def bounds(self) -> BOUNDS_TYPES:
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             return (0.0, 0.0, self._x_coords[-1], self._y_coords[-1])
         return (0.0, 0.0, 0.0, self._x_coords[-1], self._y_coords[-1], self._z_coords[-1])
 
@@ -254,7 +248,7 @@ class ManhattanWorld:
             area (List[Tuple[int, int]]): the feasibility area for robots, denoted by the
                 bottom left and top right vertices.
         """
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             assert self.check_vertex_list_valid(area)
             assert len(area) == 2
 
@@ -294,7 +288,7 @@ class ManhattanWorld:
                 abs(self._max_y_idx_feasible * self._scale - self._max_y_coord_feasible)
                 < self._tol
             )
-        elif (self.dim == 3):
+        else:
             assert self.check_vertex_list_valid(area)
             assert len(area) == 2
 
@@ -346,8 +340,6 @@ class ManhattanWorld:
                 abs(self._max_z_idx_feasible * self._scale - self._max_z_coord_feasible)
                 < self._tol
             )
-        else:
-            raise ValueError(f"Dimension {self.dim} not supported")
 
     def get_neighboring_vertices(self, vert: VERTEX_TYPES) -> VERTEX_TYPES:
         """gets all neighboring vertices to the vertex at index (i, j). Only
@@ -362,7 +354,7 @@ class ManhattanWorld:
 
         assert self.check_vertex_valid(vert)
 
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             i, j = vert
             candidate_vertices = []
 
@@ -419,7 +411,7 @@ class ManhattanWorld:
         neighbor_verts = self.get_neighboring_vertices(vert)
         assert self.check_vertex_list_valid(neighbor_verts)
 
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             assert 2 <= len(neighbor_verts) <= 4
 
             feasible_neighbor_verts = [
@@ -455,7 +447,7 @@ class ManhattanWorld:
         robot_loc = robot.position
         robot_pose = robot.pose
 
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             # get robot vertex
             robot_vert = self.point2vertex(robot_loc)
             assert self.check_vertex_valid(robot_vert)
@@ -496,8 +488,9 @@ class ManhattanWorld:
             not_behind_pts = []
             for pt in neighboring_feasible_pts:
                 distance, bearing = robot_pose.range_and_bearing_to_point(pt)
-                if np.abs(bearing) < (np.pi / 2) + self._tol:
+                if (np.abs(bearing[0]) < (np.pi / 2) + self._tol) and (np.abs(bearing[1]) < (np.pi / 2) + self._tol):
                     not_behind_pts.append((pt, bearing))
+            return not_behind_pts
 
     def get_vertex_behind_robot(self, robot: Robot) -> Union[List[Tuple[Point2, float]], List[Tuple[Point3, Tuple[float, float]]]]:
         """get the vertex that is behind the robot
@@ -527,8 +520,15 @@ class ManhattanWorld:
 
         for pt in neighboring_feasible_pts:
             distance, bearing = robot_pose.range_and_bearing_to_point(pt)
-            if np.abs(bearing) > (np.pi / 2) + self._tol:
-                return (pt, bearing)
+
+            if (self.dim == DIM.TWO):
+                # 2D: Any bearing between 90 and 270 degrees is behind the robot
+                if np.abs(bearing) > (np.pi / 2) + self._tol:
+                    return (pt, bearing)
+            else:
+                # 3D: any bearing where abs(atan2(y, x)) > 90 degrees and abs(atan2(z, x)) > 90 degrees is behind the robot
+                if (np.abs(bearing[0]) > (np.pi / 2) + self._tol) and (np.abs(bearing[1]) > (np.pi / 2) + self._tol):
+                    return (pt, bearing)
 
     def get_random_robot_pose(self, local_frame: str) -> POSE_TYPES:
         """Returns a random, feasible robot pose located on a corner in the
@@ -541,7 +541,7 @@ class ManhattanWorld:
         """
         # TODO: Extend to 3D domain
 
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             feasible_x_vals = (self._min_x_coord_feasible < self._x_coords) & (
                 self._x_coords < self._max_x_coord_feasible
             )
@@ -574,7 +574,7 @@ class ManhattanWorld:
                 local_frame=local_frame,
                 base_frame="world",
             )
-        elif (self.dim == 3):
+        else:
             feasible_x_vals = (self._min_x_coord_feasible < self._x_coords) & (
                 self._x_coords < self._max_x_coord_feasible
             )
@@ -617,8 +617,6 @@ class ManhattanWorld:
                 local_frame=local_frame,
                 base_frame="world",
             )
-        else:
-            raise ValueError(f"Dimension {self.dim} not supported")
 
     def get_random_beacon_point(self, frame: str) -> Union[Optional[Point2], Optional[Point3]]:
         """Returns a random beacon point on the grid.
@@ -633,7 +631,7 @@ class ManhattanWorld:
 
         # * this is also somewhat naive but it works... could revisit this later
 
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             # get random beacon position by generating all possible coordinates and
             # then just pruning those that are not feasible for the beacon
             x_idxs = np.arange(self._num_x_pts)
@@ -656,7 +654,7 @@ class ManhattanWorld:
             i, j = vert_sample
             position = Point2(self._xv[i, j], self._yv[i, j], frame=frame)
             return position
-        elif (self.dim == 3):
+        else:
             x_idxs = np.arange(self._num_x_pts)
             y_idxs = np.arange(self._num_y_pts)
             z_idxs = np.arange(self._num_z_pts)
@@ -678,8 +676,6 @@ class ManhattanWorld:
             i, j, k = vert_sample
             position = Point3(self._xv[i, j, k], self._yv[i, j, k], self._zv[i, j, k], frame=frame)
             return position
-        else:
-            raise ValueError(f"Dimension {self.dim} not supported")
 
     ###### Coordinate and vertex conversion methods ######
 
@@ -697,7 +693,7 @@ class ManhattanWorld:
         Returns:
             Tuple[int, int]: the corresponding vertex indices
         """
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             i, dx, x_close = _find_nearest(self._x_coords, x)
             j, dy, y_close = _find_nearest(self._y_coords, y)
             if abs(dx) < self._tol and abs(dy) < self._tol:
@@ -706,7 +702,7 @@ class ManhattanWorld:
                 raise ValueError(
                     f"The input ({str(x)}, {str(y)}) is off grid vertices."
                 )
-        elif (self.dim == 3):
+        else:
             i, dx, x_close = _find_nearest(self._x_coords, x)
             j, dy, y_close = _find_nearest(self._y_coords, y)
             k, dz, z_close = _find_nearest(self._z_coords, z)
@@ -716,8 +712,6 @@ class ManhattanWorld:
                 raise ValueError(
                     f"The input ({str(x)}, {str(y)}, {str(z)}) is off grid vertices."
                 )
-        else:
-            raise ValueError(f"Dimension {self.dim} not supported")
 
     def coordinates2vertices(
         self, coords: COORDINATE_LIST_TYPES
@@ -733,7 +727,10 @@ class ManhattanWorld:
         """
 
         assert len(coords) >= 1
-        assert all(len(c) == self.dim for c in coords)
+        if (self.dim == DIM.TWO):
+            assert all(len(c) == 2 for c in coords)
+        else:
+            assert all(len(c) == 3 for c in coords)
 
         nearest_vertices = [self.coordinate2vertex(*c) for c in coords]
         assert self.check_vertex_list_valid(nearest_vertices)
@@ -752,19 +749,17 @@ class ManhattanWorld:
 
         assert self.check_vertex_valid(vert)
 
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             # print("xv: " + str(self._xv))
             # print("yv: " + str(self._yv))
             i, j = vert
             return (self._xv[i, j], self._yv[i, j])
-        elif (self.dim == 3):
+        else:
             # print("xv: " + str(self._xv))
             # print("yv: " + str(self._yv))
             # print("zv: " + str(self._zv))
             i, j, k = vert
             return (self._xv[i, j, k], self._yv[i, j, k], self._zv[i, j, k])
-        else:
-            raise ValueError(f"Dimension {self.dim} not supported")
 
     def vertices2coordinates(
         self, vertices: VERTEX_LIST_TYPES
@@ -792,14 +787,12 @@ class ManhattanWorld:
 
         assert self.check_vertex_valid(vert)
 
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             x, y = self.vertex2coordinate(vert)
             return Point2(float(x), float(y), frame="world")
-        elif (self.dim == 3):
+        else:
             x, y, z = self.vertex2coordinate(vert)
             return Point3(float(x), float(y), float(z), frame="world")
-        else:
-            raise ValueError(f"Dimension {self.dim} not supported")
 
     def point2vertex(self, point: POINT_TYPES) -> VERTEX_TYPES:
         """Takes a point in the world frame and returns the corresponding
@@ -832,7 +825,7 @@ class ManhattanWorld:
             bool: True if the robot is feasible at that pose, False otherwise
         """
 
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             rotation_is_good = abs(pose.theta % (np.pi / 2.0)) < self._tol
             if not rotation_is_good:
                 print(f"Rotation is {pose.theta} and not a multiple of pi/2")
@@ -842,7 +835,7 @@ class ManhattanWorld:
             if not self.vertex_is_robot_feasible(vert):
                 print(f"Coordinate {pose.x}, {pose.y} from vertex {vert} is not feasible")
                 return False
-        elif (self.dim == 3):
+        else:
             roll, pitch, yaw = pose.rot.angles
             assert len(pose.rot.angles) == 3
 
@@ -858,10 +851,7 @@ class ManhattanWorld:
             if not self.vertex_is_robot_feasible(vert):
                 print(f"Coordinate {pose.x}, {pose.y}, {pose.z} from vertex {vert} is not feasible")
                 return False
-        else:
-            raise ValueError(f"Dimension {self.dim} not supported")
             
-
         return True
 
     def position_is_beacon_feasible(self, position: POINT_TYPES) -> bool:
@@ -875,14 +865,12 @@ class ManhattanWorld:
             bool: True if the position is feasible for a beacon, False otherwise
         """
 
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             vert = self.coordinate2vertex(position.x, position.y)
             return self.vertex_is_beacon_feasible(vert)
-        elif (self.dim == 3):
+        else:
             vert = self.coordinate2vertex(position.x, position.y, position.z)
             return self.vertex_is_beacon_feasible(vert)
-        else:
-            raise ValueError(f"Dimension {self.dim} not supported")
 
     def vertex_is_beacon_feasible(self, vert: VERTEX_TYPES) -> bool:
         """Returns whether the vertex is feasible for beacons.
@@ -913,7 +901,7 @@ class ManhattanWorld:
 
         assert self.check_vertex_valid(vert)
 
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             i, j = vert
 
             # vertex can only be feasible if on one of the lines defined by the
@@ -925,7 +913,7 @@ class ManhattanWorld:
                 return self._robot_feasibility[i, j]
             else:
                 return False
-        elif (self.dim == 3):
+        else:
             i, j, k = vert
 
             # vertex can only be feasible if on one of the lines defined by the
@@ -940,21 +928,19 @@ class ManhattanWorld:
                 return False
 
     def vertex_is_in_bounds(self, vert: VERTEX_TYPES) -> bool:
-        if (self.dim == 2):
+        if (self.dim == DIM.TWO):
             assert len(vert) == 2
 
             x_in_bounds = 0 <= vert[0] < self._num_x_pts
             y_in_bounds = 0 <= vert[1] < self._num_y_pts
             return x_in_bounds and y_in_bounds
-        elif (self.dim == 3):
+        else:
             assert len(vert) == 3
 
             x_in_bounds = 0 <= vert[0] < self._num_x_pts
             y_in_bounds = 0 <= vert[1] < self._num_y_pts
             z_in_bounds = 0 <= vert[2] < self._num_z_pts
             return x_in_bounds and y_in_bounds and z_in_bounds
-        else:
-            raise ValueError(f"Dimension {self.dim} not supported")
 
     def check_vertex_valid(self, vert: VERTEX_TYPES):
         """Checks that the indices of the vertex are within the bounds of the grid
@@ -966,17 +952,15 @@ class ManhattanWorld:
             bool: True if the vertex is valid, False otherwise
         """
 
-        if self.dim == 2:
+        if self.dim == DIM.TWO:
             assert len(vert) == 2, f"vert: {vert}, len: {len(vert)}"
             assert 0 <= vert[0] < self._num_x_pts
             assert 0 <= vert[1] < self._num_y_pts
-        elif self.dim == 3:
+        else:
             assert len(vert) == 3, f"vert: {vert}, len: {len(vert)}"
             assert 0 <= vert[0] < self._num_x_pts
             assert 0 <= vert[1] < self._num_y_pts
             assert 0 <= vert[2] < self._num_z_pts
-        else:
-            raise ValueError(f"Dimension {self.dim} not supported")
         return True
 
     def check_vertex_list_valid(self, vertices: AREA_TYPES):

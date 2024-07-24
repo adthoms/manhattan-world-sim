@@ -3,8 +3,7 @@ from typing import Union
 import numpy as np
 
 from manhattan.measurement.loop_closure import LoopClosure, LoopClosure2, LoopClosure3
-from manhattan.geometry.Elements import SEPose, SE2Pose, SE3Pose
-
+from manhattan.geometry.Elements import SEPose, SE2Pose, SE3Pose, DIM
 
 class LoopClosureModel:
     """
@@ -34,6 +33,11 @@ class LoopClosureModel:
     @property
     def mean(self) -> np.ndarray:
         return self._mean
+    
+    @property
+    @abstractmethod
+    def dim(self) -> DIM:
+        pass
 
     @abstractmethod
     def get_relative_pose_measurement(
@@ -89,6 +93,10 @@ class GaussianLoopClosureModel2(LoopClosureModel):
             + f"Covariance: {self._covariance.flatten()}\n"
             + f"Mean: {self._mean}\n"
         )
+
+    @property
+    def dim(self) -> DIM:
+        return DIM.TWO
 
     def get_relative_pose_measurement(
         self, pose_1: SE2Pose, pose_2: SE2Pose, association: str, timestamp: int
@@ -172,6 +180,10 @@ class GaussianLoopClosureModel3(LoopClosureModel):
             + f"Covariance: {self._covariance.flatten()}\n"
             + f"Mean: {self._mean}\n"
         )
+    
+    @property
+    def dim(self) -> DIM:
+        return DIM.THREE
 
     def get_relative_pose_measurement(
         self, pose_1: SE3Pose, pose_2: SE3Pose, association: str, timestamp: int

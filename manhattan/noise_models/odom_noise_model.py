@@ -2,10 +2,9 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from manhattan.measurement.odom_measurement import OdomMeasurement, OdomMeasurement2, OdomMeasurement3
-from manhattan.geometry.Elements import SEPose, SE2Pose, SE3Pose
+from manhattan.geometry.Elements import SEPose, SE2Pose, SE3Pose, DIM
 from numpy import ndarray
 from typing import List, Tuple, Union, Optional, overload
-
 
 class OdomNoiseModel(ABC):
     """
@@ -27,6 +26,11 @@ class OdomNoiseModel(ABC):
             + f"Covariance: {self._covariance.flatten()}\n"
             + f"Mean: {self._mean}\n"
         )
+
+    @property
+    @abstractmethod
+    def dim(self) -> DIM:
+        pass
 
     @abstractmethod
     def get_odometry_measurement(self, movement: SEPose) -> Union[OdomMeasurement2, OdomMeasurement3]:
@@ -72,6 +76,10 @@ class GaussianOdomNoiseModel2(OdomNoiseModel):
             + f"Covariance: {self._covariance.flatten()}\n"
             + f"Mean: {self._mean}\n"
         )
+
+    @property
+    def dim(self) -> DIM:
+        return DIM.TWO
 
     @property
     def covariance(self):
@@ -146,6 +154,10 @@ class GaussianOdomNoiseModel3(OdomNoiseModel):
             + f"Covariance: {self._covariance.flatten()}\n"
             + f"Mean: {self._mean}\n"
         )
+
+    @property
+    def dim(self) -> DIM:
+        return DIM.THREE
 
     @property
     def covariance(self):

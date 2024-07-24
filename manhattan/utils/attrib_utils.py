@@ -55,7 +55,21 @@ def probability_validator(instance, attribute, value):
     if not 0 <= value <= 1:
         raise ValueError(f"Value {value} is not within range [0,1]")
 
+def dimension_validator(instance, attribute, value):
+    """
+    Return validator for dimension.
 
+    Args:
+        value (int): value to validate
+    
+    Returns:
+        None
+    """
+    if not isinstance(value, int):
+        raise ValueError(f"{value} is not an int")
+    if value not in [2, 3]:
+        raise ValueError(f"Dimension {value} not supported")
+    
 def positive_float_validator(instance, attribute, value):
     """
     Return validator for positive float.
@@ -102,5 +116,24 @@ def positive_int_tuple_validator(instance, attribute, value) -> None:
         raise ValueError(f"{value} is not a tuple")
     if not all(isinstance(x, int) for x in value):
         raise ValueError(f"At least one value in {value} is not an int")
+    if not all(x >= 0 for x in value):
+        raise ValueError(f"At least one value in {value} is negative")
+
+def rpy_stddev_validator(instance, attribute, value) -> None:
+    """
+    Return validator for standard deviation of rpy angles
+
+    Args:
+        value (Tuple[int, int, int]): value to validate
+
+    Returns:
+        None
+    """
+    if not isinstance(value, tuple):
+        raise ValueError(f"{value} is not a tuple")
+    if not len(value) == 3:
+        raise ValueError(f"{value} is not of length 3")
+    if not all(isinstance(x, float) for x in value):
+        raise ValueError(f"At least one value in {value} is not a float")
     if not all(x >= 0 for x in value):
         raise ValueError(f"At least one value in {value} is negative")

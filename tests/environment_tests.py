@@ -5,7 +5,7 @@ import math
 import unittest
 import numpy as np
 
-from manhattan.geometry.Elements import Point, Point2, Point3, Rot, Rot2, Rot3, SEPose, SE2Pose, SE3Pose
+from manhattan.geometry.Elements import DIM, Point, Point2, Point3, Rot, Rot2, Rot3, SEPose, SE2Pose, SE3Pose
 from manhattan.environment.environment import ManhattanWorld
 FRAME_1 = "odom"
 FRAME_2 = "world"
@@ -51,14 +51,14 @@ test_rot_4 = Rot3(roll_4, pitch_4, yaw_4, FRAME_3, FRAME_2)
 test_pose_3 = SE3Pose.by_point_and_rotation(test_point_3, test_rot_3, FRAME_1, FRAME_2)
 test_pose_4 = SE3Pose.by_point_and_rotation(test_point_4, test_rot_4, FRAME_3, FRAME_2)
 
-manhat_2d = ManhattanWorld()
-manhat_3d = ManhattanWorld(dim=3, grid_vertices_shape=(9, 9, 9))
-manhat_scaled_2d = ManhattanWorld(cell_scale = 2.0)
-manhat_scaled_3d = ManhattanWorld(dim=3, grid_vertices_shape=(9, 9, 9), cell_scale = 2.0)
-manhat_area_2d = ManhattanWorld(robot_area=[(1, 1), (5, 5)])
-manhat_area_3d = ManhattanWorld(dim=3, grid_vertices_shape=(9, 9, 9), robot_area=[(1, 1, 1), (5, 5, 5)])
-manhat_intersect_2d = ManhattanWorld(robot_area=[(1, 1), (5, 5)], x_steps_to_intersection=2, y_steps_to_intersection=2)
-manhat_intersect_3d = ManhattanWorld(dim=3, grid_vertices_shape=(9, 9, 9), robot_area=[(1, 1, 1), (5, 5, 5)], x_steps_to_intersection=2, y_steps_to_intersection=2, z_steps_to_intersection=2)
+manhat_2d = ManhattanWorld(grid_vertices_shape=(9, 9))
+manhat_3d = ManhattanWorld(dim=DIM.THREE, grid_vertices_shape=(9, 9, 9))
+manhat_scaled_2d = ManhattanWorld(grid_vertices_shape=(9, 9), cell_scale = 2.0)
+manhat_scaled_3d = ManhattanWorld(dim=DIM.THREE, grid_vertices_shape=(9, 9, 9), cell_scale = 2.0)
+manhat_area_2d = ManhattanWorld(grid_vertices_shape=(9, 9), robot_area=[(1, 1), (5, 5)])
+manhat_area_3d = ManhattanWorld(dim=DIM.THREE, grid_vertices_shape=(9, 9, 9), robot_area=[(1, 1, 1), (5, 5, 5)])
+manhat_intersect_2d = ManhattanWorld(grid_vertices_shape=(9, 9), robot_area=[(1, 1), (5, 5)], x_steps_to_intersection=2, y_steps_to_intersection=2)
+manhat_intersect_3d = ManhattanWorld(dim=DIM.THREE, grid_vertices_shape=(9, 9, 9), robot_area=[(1, 1, 1), (5, 5, 5)], x_steps_to_intersection=2, y_steps_to_intersection=2, z_steps_to_intersection=2)
 
 class TestGetterSetter(unittest.TestCase):
     def test_set_robot_area_feasibility(self):
@@ -76,7 +76,7 @@ class TestGetterSetter(unittest.TestCase):
         feasible_area_3d = [(1, 1, 1), (5, 5, 5)]
         full_grid_3d = (9, 9, 9)
 
-        manhat_robot_area_3d = ManhattanWorld(dim=3, grid_vertices_shape=full_grid_3d)
+        manhat_robot_area_3d = ManhattanWorld(dim=DIM.THREE, grid_vertices_shape=full_grid_3d)
         blf, trb = feasible_area_3d
         mask_3d = np.zeros((full_grid_3d[0] + 1, full_grid_3d[1] + 1, full_grid_3d[2] + 1), dtype=bool)
         mask_3d[blf[0] : trb[0] + 1, blf[1] : trb[1] + 1, blf[2] : trb[2] + 1] = True
@@ -87,7 +87,7 @@ class TestGetterSetter(unittest.TestCase):
         manhat_scaled_robot_area_2d.set_robot_area_feasibility(feasible_area_2d)
 
         # Test scaled 3D robot area feasibility
-        manhat_scaled_robot_area_3d = ManhattanWorld(dim=3, grid_vertices_shape=full_grid_3d, cell_scale = 2.0)
+        manhat_scaled_robot_area_3d = ManhattanWorld(dim=DIM.THREE, grid_vertices_shape=full_grid_3d, cell_scale = 2.0)
         manhat_scaled_robot_area_3d.set_robot_area_feasibility(feasible_area_3d)
 
         # Test robot feasibility area against expected mask

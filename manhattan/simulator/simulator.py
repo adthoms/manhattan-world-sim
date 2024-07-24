@@ -21,8 +21,8 @@ coloredlogs.install(
 )
 
 from manhattan.environment.environment import ManhattanWorld
-from manhattan.agent.agent import Robot, Beacon
-from manhattan.geometry.Elements import SE2Pose, Point2
+from manhattan.agent.agent import Robot, Beacon, Robot2, Robot3
+from manhattan.geometry.Elements import Point, SE2Pose, Point2, SE3Pose, SEPose, DIM
 from manhattan.measurement.range_measurement import RangeMeasurement
 from manhattan.measurement.odom_measurement import OdomMeasurement
 from manhattan.measurement.loop_closure import LoopClosure
@@ -41,18 +41,26 @@ from manhattan.noise_models.loop_closure_model import (
 )
 from manhattan.utils.sample_utils import choice
 from manhattan.utils.attrib_utils import (
+    dimension_validator,
     probability_validator,
     positive_float_validator,
     positive_int_validator,
     positive_int_tuple_validator,
+    rpy_stddev_validator
 )
 from py_factor_graph.utils.name_utils import get_robot_char_from_number
 from py_factor_graph.factor_graph import FactorGraphData
-from py_factor_graph.variables import PoseVariable2D, LandmarkVariable2D
+from py_factor_graph.variables import (
+    PoseVariable2D, 
+    PoseVariable3D,
+    LandmarkVariable2D,
+    LandmarkVariable3D)
 from py_factor_graph.measurements import (
     PoseMeasurement2D,
+    PoseMeasurement3D,
     FGRangeMeasurement,
     AmbiguousPoseMeasurement2D,
+    # AmbiguousPoseMeasurement3D,
     AmbiguousFGRangeMeasurement,
 )
 from py_factor_graph.priors import PosePrior2D, LandmarkPrior2D
@@ -62,6 +70,7 @@ from py_factor_graph.priors import PosePrior2D, LandmarkPrior2D
 class SimulationParams:
     """
     Args:
+        dimension (int): the dimension of the simulation (2 or 3)
         num_robots (int): Number of robots to simulate
         num_beacons (int): Number of beacons to simulate
         grid_shape (Tuple[int, int]): (rows, cols) the shape of the manhattan
@@ -111,11 +120,13 @@ class SimulationParams:
             n poses from LC candidates
     """
 
+    dimension: int = attr.ib(default=2, validator=dimension_validator)
     num_robots: int = attr.ib(default=1, validator=positive_int_validator)
     num_beacons: int = attr.ib(default=0, validator=positive_int_validator)
     grid_shape: Tuple[int, int] = attr.ib(
-        default=(10, 10), validator=positive_int_tuple_validator
+        default=None, validator=positive_int_tuple_validator
     )
+    z_steps_to_intersection: int = attr.ib(default=1, validator=positive_int_validator)
     y_steps_to_intersection: int = attr.ib(default=1, validator=positive_int_validator)
     x_steps_to_intersection: int = attr.ib(default=1, validator=positive_int_validator)
     cell_scale: float = attr.ib(default=1.0, validator=positive_float_validator)
@@ -136,10 +147,14 @@ class SimulationParams:
     range_stddev: float = attr.ib(default=5, validator=positive_float_validator)
     odom_x_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
     odom_y_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
+    odom_z_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
     odom_theta_stddev: float = attr.ib(default=1e-2, validator=positive_float_validator)
+    odom_rpy_stddev: float = attr.ib(default=(1e-2, 1e-2, 1e-2), validator=rpy_stddev_validator)
     loop_x_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
     loop_y_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
+    loop_z_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
     loop_theta_stddev: float = attr.ib(default=1e-2, validator=positive_float_validator)
+    loop_rpy_stddev: float = attr.ib(default=(1e-2, 1e-2, 1e-2), validator=rpy_stddev_validator)
     seed_num: int = attr.ib(default=0, validator=positive_int_validator)
     debug_mode: bool = attr.ib(default=False)
     groundtruth_measurements: bool = attr.ib(default=False)
@@ -173,18 +188,31 @@ class ManhattanSimulator:
         assert sim_params.num_beacons >= 0, "num_beacons cannot be negative"
 
         # grid_shape is tuple of positive integers
-        assert len(sim_params.grid_shape) == 2
+        assert len(sim_params.grid_shape) == sim_params.dimension
         assert all(0 < x for x in sim_params.grid_shape)
 
         if sim_params.num_beacons > 0:
-            assert (
-                sim_params.y_steps_to_intersection > 1
-                and sim_params.x_steps_to_intersection > 1
-            ), "Need some space in grid to place beacons"
+            if (sim_params.dimension == 2):
+                assert (
+                    sim_params.y_steps_to_intersection > 1
+                    and sim_params.x_steps_to_intersection > 1
+                ), "Need some space in grid to place beacons"
+            else:
+                assert (
+                    sim_params.y_steps_to_intersection > 1
+                    and sim_params.x_steps_to_intersection > 1
+                    and sim_params.z_steps_to_intersection > 1
+                ), "Need some space in grid to place beacons"
 
         # row and column spacing evenly fits into the grid shape
         assert sim_params.grid_shape[0] % sim_params.y_steps_to_intersection == 0
         assert sim_params.grid_shape[1] % sim_params.x_steps_to_intersection == 0
+        if (sim_params.dimension == 3):
+            assert sim_params.grid_shape[2] % sim_params.z_steps_to_intersection == 0
+
+        # height_intersection_number is int > 0 and <= grid_shape[2]
+        if (sim_params.dimension == 3):
+            assert 0 <= sim_params.z_steps_to_intersection <= sim_params.grid_shape[2]
 
         # row_intersection_number is int > 0 and <= grid_shape[0]
         assert 0 <= sim_params.y_steps_to_intersection <= sim_params.grid_shape[0]
@@ -225,6 +253,11 @@ class ManhattanSimulator:
         assert 0 < sim_params.loop_y_stddev
         assert 0 < sim_params.loop_theta_stddev
 
+        if (sim_params.dimension == 3):
+            assert 0 < sim_params.odom_z_stddev
+            assert 0 < sim_params.loop_z_stddev
+            assert all(0 < i for i in sim_params.odom_rpy_stddev)
+
     def check_simulation_state(
         self,
     ) -> None:
@@ -248,11 +281,13 @@ class ManhattanSimulator:
             logger.warning("Groundtruth measurements are enabled.")
 
         self._env = ManhattanWorld(
+            dimension=sim_params.dimension,
             grid_vertices_shape=sim_params.grid_shape,
             y_steps_to_intersection=sim_params.y_steps_to_intersection,
             x_steps_to_intersection=sim_params.x_steps_to_intersection,
             cell_scale=sim_params.cell_scale,
         )
+        self._dim = sim_params.dimension
         self._sim_params = sim_params
         self._robots: List[Robot] = []
         self._beacons: List[Beacon] = []
@@ -261,7 +296,7 @@ class ManhattanSimulator:
 
         # bookkeeping for pose measurements
         self._num_loop_closures = 0
-        self._groundtruth_poses: List[List[SE2Pose]] = []
+        self._groundtruth_poses: List[List[SEPose]] = []
 
         # bookkeeping for range measurements
         self._sensed_beacons: Set[Beacon] = set()
@@ -274,30 +309,59 @@ class ManhattanSimulator:
             mean=0.0, stddev=self._sim_params.range_stddev
         )
 
-        # odometry measurements
-        odom_cov_x = self._sim_params.odom_x_stddev**2
-        odom_cov_y = self._sim_params.odom_y_stddev**2
-        odom_cov_theta = self._sim_params.odom_theta_stddev**2
+        # Construct Gaussian odometry model based on dimension
+        if (self._dim == 2):
+            # odometry measurements
+            odom_cov_x = self._sim_params.odom_x_stddev**2
+            odom_cov_y = self._sim_params.odom_y_stddev**2
+            odom_cov_theta = self._sim_params.odom_theta_stddev**2
 
-        # GaussOdomSensor can be either 2D or 3D; _base_odometry_model must account for this
-        self._base_odometry_model = GaussOdomSensor(
-            mean=np.zeros(3),
-            covariance=np.diag([odom_cov_x, odom_cov_y, odom_cov_theta]),
-        )
+            self._base_odometry_model = GaussOdomSensor(
+                mean=np.zeros(3),
+                covariance=np.diag([odom_cov_x, odom_cov_y, odom_cov_theta]),
+            )
+        elif (self._dim == 3):
+            # odometry measurements
+            odom_cov_x = self._sim_params.odom_x_stddev**2
+            odom_cov_y = self._sim_params.odom_y_stddev**2
+            odom_cov_z = self._sim_params.odom_z_stddev**2
+            odom_cov_rpy = [self._sim_params.odom_rpy_stddev[0]**2, self._sim_params.odom_rpy_stddev[1]**2, self._sim_params.odom_rpy_stddev[2]**2]
 
-        # loop closures
-        loop_cov_x = self._sim_params.loop_x_stddev**2
-        loop_cov_y = self._sim_params.loop_y_stddev**2
-        loop_cov_theta = self._sim_params.loop_theta_stddev**2
+            self._base_odometry_model = GaussOdomSensor(
+                mean=np.zeros(6),
+                covariance=np.diag([odom_cov_x, odom_cov_y, odom_cov_z, odom_cov_theta, odom_cov_rpy[0], odom_cov_rpy[1], odom_cov_rpy[2]]),
+            )
+        else:
+            raise ValueError(f"Dimension {self._dim} not supported")
 
-        # GaussLoopClosureSensor can be either 2D or 3D; _base_loop_closure_model must account for this
-        self._base_loop_closure_model = GaussLoopClosureSensor(
-            mean=np.zeros(3),
-            covariance=np.diag([loop_cov_x, loop_cov_y, loop_cov_theta]),
-        )
+        if (self._dim == 2):
+            # loop closures
+            loop_cov_x = self._sim_params.loop_x_stddev**2
+            loop_cov_y = self._sim_params.loop_y_stddev**2
+            loop_cov_theta = self._sim_params.loop_theta_stddev**2
+
+            # GaussLoopClosureSensor can be either 2D or 3D; _base_loop_closure_model must account for this
+            self._base_loop_closure_model = GaussLoopClosureSensor(
+                mean=np.zeros(3),
+                covariance=np.diag([loop_cov_x, loop_cov_y, loop_cov_theta]),
+            )
+        elif (self._dim == 3):
+            # loop closures
+            loop_cov_x = self._sim_params.loop_x_stddev**2
+            loop_cov_y = self._sim_params.loop_y_stddev**2
+            loop_cov_z = self._sim_params.loop_z_stddev**2
+            loop_cov_rpy = [self._sim_params.loop_rpy_stddev[0]**2, self._sim_params.loop_rpy_stddev[1]**2, self._sim_params.loop_rpy_stddev[2]**2]
+
+            # GaussLoopClosureSensor can be either 2D or 3D; _base_loop_closure_model must account for this
+            self._base_loop_closure_model = GaussLoopClosureSensor(
+                mean=np.zeros(6),
+                covariance=np.diag([loop_cov_x, loop_cov_y, loop_cov_z, loop_cov_rpy[0], loop_cov_rpy[1], loop_cov_rpy[2]]),
+            )
+        else:
+            raise ValueError(f"Dimension {self._dim} not supported")
 
         # Add factor graph structure to hold data
-        self._factor_graph: FactorGraphData = FactorGraphData(dimension=2)
+        self._factor_graph: FactorGraphData = FactorGraphData(dimension=self._dim)
 
         # * add these after everything else is initialized
         self.add_robots(sim_params.num_robots)
@@ -309,10 +373,21 @@ class ManhattanSimulator:
         # for visualizing things
         self._robot_plot_objects = []  # type: ignore
         self._beacon_plot_objects = []  # type: ignore
-        self.fig, self.ax = plt.subplots()
-        x_lb, y_lb, x_ub, y_ub = self._env.bounds
-        self.ax.set_xlim(x_lb - 1, x_ub + 1)
-        self.ax.set_ylim(y_lb - 1, y_ub + 1)
+
+        if (self._dim == 2):
+            self.fig, self.ax = plt.subplots()
+            x_lb, y_lb, x_ub, y_ub = self._env.bounds
+            self.ax.set_xlim(x_lb - 1, x_ub + 1)
+            self.ax.set_ylim(y_lb - 1, y_ub + 1)
+        elif (self._dim == 3):
+            self.fig = plt.figure()
+            self.ax = self.fig.add_subplot(111, projection='3d')
+            x_lb, y_lb, z_lb, x_ub, y_ub, z_ub = self._env.bounds
+            self.ax.set_xlim3d(x_lb - 1, x_ub + 1)
+            self.ax.set_ylim3d(y_lb - 1, y_ub + 1)
+            self.ax.set_zlim3d(z_lb - 1, z_ub + 1)
+        else:
+            raise ValueError(f"Dimension {self._dim} not supported")
 
     # make a destructor to close the plot
     def __del__(self) -> None:
@@ -361,6 +436,9 @@ class ManhattanSimulator:
         Returns:
             (str): the filepath
         """
+
+        # TODO: Extend save_simulation_data to 3d
+
         if not isdir(data_dir):
             makedirs(data_dir)
 
@@ -380,9 +458,15 @@ class ManhattanSimulator:
         Args:
             show_gt (bool, optional): whether to show the ground truth. Defaults to False.
         """
+
+        # TODO: Extend animate_odometry to 3d
+
         self._factor_graph.animate_odometry(show_gt=True, pause_interval=0.01)
 
     def random_step(self) -> None:
+
+        # TODO: Extend random_step to 3d
+
         self._move_robots_randomly()
         self._update_range_measurements()
         self._update_loop_closures()
@@ -403,7 +487,7 @@ class ManhattanSimulator:
 
     def add_robot(
         self,
-        start_pose: Optional[SE2Pose] = None,
+        start_pose: Optional[SEPose] = None,
         range_model: Optional[RangeNoiseModel] = None,
         odom_model: Optional[OdomNoiseModel] = None,
         loop_closure_model: Optional[LoopClosureModel] = None,
@@ -412,7 +496,7 @@ class ManhattanSimulator:
         is sampled from the environment.
 
         Args:
-            start_pose (SE2Pose, optional): where to add the robot. Defaults to None.
+            start_pose (SEPose, optional): where to add the robot. Defaults to None.
             range_model (RangeNoiseModel, optional): the robot's range sensing
                 model. Defaults to None.
             odom_model (OdomNoiseModel, optional): the robot's odometry model.
@@ -420,6 +504,22 @@ class ManhattanSimulator:
             LoopClosureModel (LoopClosureModel, optional): the robot's loop
                 closure model. Defaults to None.
         """
+
+        if (self._dim == 2):
+            self._add_robot_2d(start_pose, range_model, odom_model, loop_closure_model)
+        elif (self._dim == 3):
+            self._add_robot_3d(start_pose, range_model, odom_model, loop_closure_model)
+        else:
+            raise ValueError(f"Dimension {self._dim} not supported")
+
+    # add_robot helper functions
+
+    def _add_robot_2d(self,
+        start_pose: Optional[SE2Pose] = None,
+        range_model: Optional[RangeNoiseModel] = None,
+        odom_model: Optional[OdomNoiseModel] = None,
+        loop_closure_model: Optional[LoopClosureModel] = None
+    ) -> None:
 
         # if no pose passed in, sample a random pose
         num_existing_robots = len(self._robots)
@@ -437,22 +537,28 @@ class ManhattanSimulator:
                 )
             else:
                 start_pose = self._env.get_random_robot_pose(local_frame=frame_name)
+        else:
+            assert isinstance(start_pose, SE2Pose), "start_pose must be an SE2Pose"
 
         if range_model is None:
             range_model = self._base_range_model
 
         if odom_model is None:
             odom_model = self._base_odometry_model
+        else:
+            assert odom_model.dim == DIM.TWO, "Odometry model must be 2D"
 
         if loop_closure_model is None:
             loop_closure_model = self._base_loop_closure_model
+        else:
+            assert loop_closure_model.dim == DIM.TWO, "Loop closure model must be 2D"
 
         # make sure that robot pose abides by the rules of the environment
         assert self._env.pose_is_robot_feasible(
             start_pose
         ), f"Robot pose {start_pose} is not feasible"
 
-        robot = Robot(
+        robot = Robot2(
             robot_name, start_pose, range_model, odom_model, loop_closure_model
         )
         self._robots.append(robot)
@@ -485,16 +591,96 @@ class ManhattanSimulator:
             )
             self._factor_graph.add_pose_prior(pose_prior)
 
+    def _add_robot_3d(self,
+        start_pose: Optional[SE3Pose] = None,
+        range_model: Optional[RangeNoiseModel] = None,
+        odom_model: Optional[OdomNoiseModel] = None,
+        loop_closure_model: Optional[LoopClosureModel] = None
+    ) -> None:
+        
+        # if no pose passed in, sample a random pose
+        num_existing_robots = len(self._robots)
+        cur_robot_idx = num_existing_robots
+        robot_name = get_robot_char_from_number(cur_robot_idx)
+        if start_pose is None:
+            frame_name = f"{robot_name}0"
+            if num_existing_robots == 0:
+                start_pose = SE3Pose(
+                    0.0, # x
+                    0.0, # y
+                    0.0, # z
+                    0.0, # roll
+                    0.0, # pitch
+                    0.0, # yaw
+                    local_frame=frame_name,
+                    base_frame="world",
+                )
+            else:
+                start_pose = self._env.get_random_robot_pose(local_frame=frame_name)
+        else:
+            assert isinstance(start_pose, SE3Pose), "start_pose must be an SE2Pose"
+        
+        if range_model is None:
+            range_model = self._base_range_model
+
+        if odom_model is None:
+            odom_model = self._base_odometry_model
+        else:
+            assert odom_model.dim == DIM.THREE, "Odometry model must be 3D"
+
+        if loop_closure_model is None:
+            loop_closure_model = self._base_loop_closure_model
+        else:
+            assert loop_closure_model.dim == DIM.THREE, "Loop closure model must be 3D"
+        
+        # make sure that robot pose abides by the rules of the environment
+        assert self._env.pose_is_robot_feasible(
+            start_pose
+        ), f"Robot pose {start_pose} is not feasible"
+
+        robot = Robot3(
+            robot_name, start_pose, range_model, odom_model, loop_closure_model
+        )
+        self._robots.append(robot)
+
+        # add to lists to track measurements
+        self._groundtruth_poses.append([])
+        self._groundtruth_poses[-1].append(start_pose)
+        assert all(len(x) == 1 for x in self._groundtruth_poses), (
+            "Should only have starting poses when adding "
+            "robots to make sure robots aren't added after simulator iterations"
+        )
+
+        pose_loc = (start_pose.x, start_pose.y, start_pose.z)
+        pose_rot = start_pose.rot.matrix
+        self._factor_graph.add_pose_variable(
+            PoseVariable3D(start_pose.local_frame, pose_loc, pose_rot, self._timestep)
+        )
+
+        # if first robot, add prior to pin
+        if num_existing_robots == 0:
+            translation_precision = 100.0
+            rotation_precision = 1000.0
+            pose_prior = PosePrior2D(
+                start_pose.local_frame,
+                pose_loc,
+                pose_rot,
+                translation_precision,
+                rotation_precision,
+            )
+            self._factor_graph.add_pose_prior(pose_prior)
+
+
     def add_beacon(
         self,
-        position: Optional[Point2] = None,
+        position: Optional[Point] = None,
         range_model: RangeNoiseModel = ConstGaussRangeSensor(),
     ) -> None:
         """Add a beacon to the simulator. If no position is provided, a random
         position is sampled from the environment.
 
         Args:
-            position (Point2, optional): the beacon's position. Defaults to None.
+            position (Point, optional): the beacon's position. Defaults to None.
             range_model (RangeNoiseModel, optional): The beacon's range model.
                 Defaults to ConstGaussRangeSensor().
         """
@@ -510,11 +696,21 @@ class ManhattanSimulator:
         ), f"Beacon position {position} is not feasible"
 
         name = f"L{len(self._beacons)}"
-        beacon = Beacon(name, position, range_model)
-        self._beacons.append(beacon)
-        self._factor_graph.add_landmark_variable(
-            LandmarkVariable2D(name, (position.x, position.y))
-        )
+
+        if (self._dim == 2):
+            beacon = Beacon(name, position, range_model)
+            self._beacons.append(beacon)
+            self._factor_graph.add_landmark_variable(
+                LandmarkVariable2D(name, (position.x, position.y))
+            )
+        elif (self._dim == 3):
+            beacon = Beacon(name, position, range_model)
+            self._beacons.append(beacon)
+            self._factor_graph.add_landmark_variable(
+                LandmarkVariable3D(name, (position.x, position.y, position.z))
+            )
+        else:
+            raise ValueError(f"Dimension {self._dim} not supported")
 
     def increment_timestep(self) -> None:
         self._timestep += 1
@@ -529,6 +725,9 @@ class ManhattanSimulator:
 
         Note: the robots are not allowed to turn around
         """
+
+        # TODO: Extend _move_robots_randomly to 3d
+
         self.increment_timestep()
 
         # iterate over all robots
@@ -553,6 +752,7 @@ class ManhattanSimulator:
             if len(possible_moves) == 0:
                 possible_moves.append(self._env.get_vertex_behind_robot(robot))
 
+            # TODO: Extend bearing to 3D. Yaw = atan2(y, x). Pitch = atan2(z, x)
             # randomly select a move from the list
             move = choice(possible_moves)
             move_pt: Point2 = move[0]
@@ -591,6 +791,14 @@ class ManhattanSimulator:
 
             # make sure nothing weird happened with the timesteps
             assert self.timestep == robot.timestep
+    
+    # _move_robots_randomly helper functions
+
+    def _move_robots_randomly_2d(self) -> None:
+        pass
+
+    def _move_robots_randomly_3d(self) -> None:
+        pass
 
     ###### Internal methods to add measurements to the simulator ######
 
@@ -603,6 +811,9 @@ class ManhattanSimulator:
             robot_idx (int): index of the robot that made the measurement.
             measurement (OdomMeasurement): the measurement to store.
         """
+
+        # TODO: Extend _store_odometry_measurement to 3d
+
         robot = self._robots[robot_idx]
 
         pose_measure = PoseMeasurement2D(
@@ -621,6 +832,9 @@ class ManhattanSimulator:
 
     def _update_range_measurements(self) -> None:
         """Update the range measurements for each robot."""
+
+        # TODO: Extend _update_range_measurements to 3d
+
         for cur_robot_id in range(self.num_robots):
             cur_robot = self._robots[cur_robot_id]
 
@@ -666,6 +880,8 @@ class ManhattanSimulator:
 
         Loop closures are of form (pose_1, pose_2)
         """
+
+        # TODO: Extend _update_loop_closures to 3d
 
         # can definitely make this faster using numpy or something to
         # compute the distances between all pairs of poses
@@ -785,6 +1001,9 @@ class ManhattanSimulator:
             Tuple[str, str]: (robot_1_name, incorrect_name) The incorrect data
                 association
         """
+
+        # TODO: Extend _get_incorrect_robot_to_robot_range_association to 3d
+
         assert 0 <= robot_1_idx < self.num_robots
         assert 0 <= robot_2_idx < self.num_robots
         assert robot_1_idx != robot_2_idx
@@ -821,6 +1040,9 @@ class ManhattanSimulator:
         Returns:
             Tuple[str, str]: the incorrect data association
         """
+
+        # TODO: Extend _get_incorrect_robot_to_beacon_range_association to 3d
+
         assert 0 <= robot_idx < self.num_robots
         assert 0 <= beacon_idx < self.num_beacons
 
@@ -862,6 +1084,9 @@ class ManhattanSimulator:
             measurement (RangeMeasurement): [description]
 
         """
+
+        # TODO: Extend _add_robot_to_robot_range_measurement to 3d
+
         assert 0 <= robot_1_idx < self.num_robots
         assert 0 <= robot_2_idx < self.num_robots
         assert robot_1_idx < robot_2_idx
@@ -907,6 +1132,9 @@ class ManhattanSimulator:
             measurement (RangeMeasurement): the measurement between the robot
                 and the beacon
         """
+
+        # TODO: Extend _add_robot_to_beacon_range_measurement to 3d
+
         assert 0 <= robot_idx < self.num_robots
         assert 0 <= beacon_idx < self.num_beacons
 
@@ -955,10 +1183,16 @@ class ManhattanSimulator:
     #### visualize simulator state methods ####
 
     def plot_grid(self):
+
+        # TODO: Extend plot_grid to 3d
+
         self._env.plot_environment(self.ax)
 
     def plot_beacons(self):
         """Plots all of the beacons"""
+
+        # TODO: Extend plot_beacons to 3d
+
         assert len(self._beacon_plot_objects) == 0, (
             "Should not be plotting over existing beacons."
             + " This function should only be called once."
@@ -970,6 +1204,8 @@ class ManhattanSimulator:
 
     def plot_robot_states(self):
         """Plots the current robot states"""
+
+        # TODO: Extend plot_robot_states to 3d
 
         # delete all of the already shown robot poses from the plot
         # this allows us to more efficiently update the animation
@@ -990,6 +1226,9 @@ class ManhattanSimulator:
             animation (bool): if True, just gives a minor pause. If False,
                 shows the plot and waits for the user to close it.
         """
+
+        # TODO: Extend show_plot to 3d
+
         if animation:
             plt.pause(0.3)
         else:
@@ -1003,6 +1242,9 @@ class ManhattanSimulator:
             self.ax.set_ylim(y_lb - 1, y_ub + 1)
 
     def close_plot(self):
+
+        # TODO: Extend close_plot to 3d
+
         plt.close()
         self._robot_plot_objects.clear()
         self._beacon_plot_objects.clear()
