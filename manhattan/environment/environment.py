@@ -67,7 +67,7 @@ class ManhattanWorld:
 
         Args:
             dim (int, optional): dimension of the world. Defaults to 2.
-            grid_vertices_shape (tuple, optional): a tuple defining the shape of
+            grid_vertices_shape (tuple): a tuple defining the shape of
                 grid vertices; note that the vertices follow ij indexing.
                 Defaults to (9, 9).
             cell_scale (int, optional): width and length of a cell. Defaults to 1.
@@ -84,6 +84,7 @@ class ManhattanWorld:
             self._num_x_pts, self._num_y_pts = grid_vertices_shape
             self._num_z_pts = 0
         else: 
+            assert len(grid_vertices_shape) == 3
             self._num_x_pts, self._num_y_pts, self._num_z_pts = grid_vertices_shape
         
         self.dim = dim
