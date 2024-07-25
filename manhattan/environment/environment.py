@@ -2,9 +2,11 @@ from copy import deepcopy
 from abc import ABC, abstractmethod
 
 import itertools
+import math
 import numpy as np
 from typing import Tuple, List, Union, Optional
 import matplotlib.pyplot as plt  # type: ignore
+from matplotlib.axes import Axes
 
 from manhattan.geometry.Elements import Point, Point3, SE2Pose, Point2, SE3Pose, SEPose, DIM
 from manhattan.agent.agent import Robot
@@ -433,7 +435,7 @@ class ManhattanWorld:
 
     def get_neighboring_robot_vertices_not_behind_robot(
         self, robot: Robot
-    ) -> Union[List[Tuple[Point2, float]], List[Tuple[Point3, Tuple[float, float]]]]:
+    ) -> Union[List[Tuple[Point2, float]], List[Tuple[Point3, Tuple[float, float, float]]]]:
         """get all neighboring vertices to the vertex the robot is at which are
         not behind the given robot
 
@@ -488,9 +490,16 @@ class ManhattanWorld:
             
             not_behind_pts = []
             for pt in neighboring_feasible_pts:
+                # bearing only encodes pitch and yaw, must calculate roll
+                diff_pt = pt - robot_pose.point
+                assert isinstance(diff_pt, Point3)
+                assert robot_pose.base_frame == diff_pt.frame
+                local_diff_pt = robot_pose.rot.unrotate_point(diff_pt)
+                roll = math.atan2(local_diff_pt.z, local_diff_pt.y)
+
                 distance, bearing = robot_pose.range_and_bearing_to_point(pt)
                 if (np.abs(bearing[0]) < (np.pi / 2) + self._tol) and (np.abs(bearing[1]) < (np.pi / 2) + self._tol):
-                    not_behind_pts.append((pt, bearing))
+                    not_behind_pts.append((pt, (roll, bearing[0], bearing[1])))
             return not_behind_pts
 
     def get_vertex_behind_robot(self, robot: Robot) -> Union[List[Tuple[Point2, float]], List[Tuple[Point3, Tuple[float, float]]]]:
@@ -975,40 +984,106 @@ class ManhattanWorld:
 
     ####### visualization #############
 
-    def plot_environment(self, ax):
+    def plot_environment(self, ax: Axes):
         # TODO: Extend to 3D domain
-        assert self._robot_feasibility.shape == (self._num_x_pts, self._num_y_pts)
 
-        # get rows and cols that the robot is allowed to travel on
-        x_pts = np.arange(self._num_x_pts)
-        valid_x = x_pts[x_pts % self._x_steps_to_intersection == 0]
-        valid_x = self._scale * valid_x
+        if (self.dim == DIM.TWO):
+            assert self._robot_feasibility.shape == (self._num_x_pts, self._num_y_pts)
 
-        y_pts = np.arange(self._num_y_pts)
-        valid_y = y_pts[y_pts % self._y_steps_to_intersection == 0]
-        valid_y = self._scale * valid_y
+            # get rows and cols that the robot is allowed to travel on
+            x_pts = np.arange(self._num_x_pts)
+            valid_x = x_pts[x_pts % self._x_steps_to_intersection == 0]
+            valid_x = self._scale * valid_x
 
-        # the bounds of the valid x and y values
-        max_x = np.max(valid_x)
-        min_x = np.min(valid_x)
-        max_y = np.max(valid_y)
-        min_y = np.min(valid_y)
+            y_pts = np.arange(self._num_y_pts)
+            valid_y = y_pts[y_pts % self._y_steps_to_intersection == 0]
+            valid_y = self._scale * valid_y
 
-        # plot the travelable rows and columns
-        ax.vlines(valid_x, min_y, max_y)
-        ax.hlines(valid_y, min_x, max_x)
+            # the bounds of the valid x and y values
+            max_x = np.max(valid_x)
+            min_x = np.min(valid_x)
+            max_y = np.max(valid_y)
+            min_y = np.min(valid_y)
 
-        for i in range(self._num_x_pts):
-            for j in range(self._num_y_pts):
+            # plot the travelable rows and columns
+            ax.vlines(valid_x, min_y, max_y)
+            ax.hlines(valid_y, min_x, max_x)
 
-                # the robot should not be traveling on these locations
-                if (
-                    i % self._x_steps_to_intersection != 0
-                    and j % self._y_steps_to_intersection != 0
-                ):
-                    continue
+            for i in range(self._num_x_pts):
+                for j in range(self._num_y_pts):
 
-                if self._robot_feasibility[i, j]:
-                    ax.plot(self._xv[i, j], self._yv[i, j], "ro", markersize=3)
-                else:
-                    ax.plot(self._xv[i, j], self._yv[i, j], "go", markersize=3)
+                    # the robot should not be traveling on these locations
+                    if (
+                        i % self._x_steps_to_intersection != 0
+                        and j % self._y_steps_to_intersection != 0
+                    ):
+                        continue
+
+                    if self._robot_feasibility[i, j]:
+                        ax.plot(self._xv[i, j], self._yv[i, j], "ro", markersize=3)
+                    else:
+                        ax.plot(self._xv[i, j], self._yv[i, j], "go", markersize=3)
+        else:
+            assert self._robot_feasibility.shape == (
+                self._num_x_pts,
+                self._num_y_pts,
+                self._num_z_pts,
+            )
+
+            # get rows and cols that the robot is allowed to travel on
+            x_pts = np.arange(self._num_x_pts)
+            valid_x = x_pts[x_pts % self._x_steps_to_intersection == 0]
+            valid_x = self._scale * valid_x
+
+            y_pts = np.arange(self._num_y_pts)
+            valid_y = y_pts[y_pts % self._y_steps_to_intersection == 0]
+            valid_y = self._scale * valid_y
+
+            z_pts = np.arange(self._num_z_pts)
+            valid_z = z_pts[z_pts % self._z_steps_to_intersection == 0]
+            valid_z = self._scale * valid_z
+
+            # the bounds of the valid x and y values
+            max_x = np.max(valid_x)
+            min_x = np.min(valid_x)
+            max_y = np.max(valid_y)
+            min_y = np.min(valid_y)
+            max_z = np.max(valid_z)
+            min_z = np.min(valid_z)
+
+            # plot the travelable rows and columns
+            # ax.vlines(valid_x, min_y, max_y)
+            # ax.hlines(valid_y, min_x, max_x)
+            # ax.
+            ax.set_xlim(min_x, max_x)
+            ax.set_ylim(min_y, max_y)
+            ax.set_zlim(min_z, max_z)
+
+            for i in range(self._num_x_pts):
+                for j in range(self._num_y_pts):
+                    for k in range(self._num_z_pts):
+
+                        # the robot should not be traveling on these locations
+                        if (
+                            i % self._x_steps_to_intersection != 0
+                            and j % self._y_steps_to_intersection != 0
+                            and k % self._z_steps_to_intersection != 0
+                        ):
+                            continue
+
+                        if self._robot_feasibility[i, j, k]:
+                            ax.plot(
+                                self._xv[i, j, k],
+                                self._yv[i, j, k],
+                                self._zv[i, j, k],
+                                "ro",
+                                markersize=3,
+                            )
+                        else:
+                            ax.plot(
+                                self._xv[i, j, k],
+                                self._yv[i, j, k],
+                                self._zv[i, j, k],
+                                "go",
+                                markersize=3,
+                            )

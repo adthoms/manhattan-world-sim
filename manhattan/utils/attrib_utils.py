@@ -1,6 +1,8 @@
 from typing import List, Optional, Callable
 import attr
 
+from manhattan.geometry.Elements import DIM
+
 
 def requirements(
     validators: Optional[List] = None,
@@ -65,9 +67,7 @@ def dimension_validator(instance, attribute, value):
     Returns:
         None
     """
-    if not isinstance(value, int):
-        raise ValueError(f"{value} is not an int")
-    if value not in [2, 3]:
+    if value not in [DIM.TWO, DIM.THREE]:
         raise ValueError(f"Dimension {value} not supported")
     
 def positive_float_validator(instance, attribute, value):
