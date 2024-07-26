@@ -672,6 +672,12 @@ class ManhattanWorld:
             # combination of all possible verts on the grid
             possible_verts = itertools.product(x_idxs, y_idxs, z_idxs)
 
+            # print(self._xv)
+            # print(self._yv)
+            # print(self._zv)
+
+            print(self._robot_feasibility)
+
             # prune out the infeasible vertices
             feasible_verts = [
                 vert for vert in possible_verts if self.vertex_is_beacon_feasible(vert)

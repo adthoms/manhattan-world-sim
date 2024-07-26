@@ -1,7 +1,7 @@
 import numpy as np
 import math
 from abc import ABC, abstractmethod
-from enum import Enum
+from enum import IntEnum
 from liegroups.numpy import SO2, SO3
 from liegroups.numpy import SE2, SE3
 from typing import List, Tuple, Union, Optional, overload
@@ -10,8 +10,8 @@ from typing import List, Tuple, Union, Optional, overload
 _TRANSLATION_TOLERANCE = 1e-6  # m
 _ROTATION_TOLERANCE = 1e-9  # rad
 
-
-class DIM(Enum):
+# IntEnum; must serialize DIM enum into JSON
+class DIM(IntEnum):
     TWO = 2
     THREE = 3
 

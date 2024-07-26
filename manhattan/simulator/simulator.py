@@ -21,7 +21,7 @@ coloredlogs.install(
 )
 
 from manhattan.environment.environment import ManhattanWorld
-from manhattan.agent.agent import Robot, Beacon, Robot2, Robot3
+from manhattan.agent.agent import Beacon, Robot, Beacon2, Beacon3, Robot2, Robot3
 from manhattan.geometry.Elements import Point, Point3, SE2Pose, Point2, SE3Pose, SEPose, DIM
 from manhattan.measurement.range_measurement import RangeMeasurement
 from manhattan.measurement.odom_measurement import OdomMeasurement, OdomMeasurement2, OdomMeasurement3
@@ -123,7 +123,7 @@ class SimulationParams:
             n poses from LC candidates
     """
 
-    dimension: int = attr.ib(default=2, validator=dimension_validator)
+    dimension: int = attr.ib(default=DIM.TWO, validator=dimension_validator)
     num_robots: int = attr.ib(default=1, validator=positive_int_validator)
     num_beacons: int = attr.ib(default=0, validator=positive_int_validator)
     grid_shape: Tuple[int, int] = attr.ib(
@@ -696,13 +696,13 @@ class ManhattanSimulator:
         name = f"L{len(self._beacons)}"
 
         if (self._dim == DIM.TWO):
-            beacon = Beacon(name, position, range_model)
+            beacon = Beacon2(name, position, range_model)
             self._beacons.append(beacon)
             self._factor_graph.add_landmark_variable(
                 LandmarkVariable2D(name, (position.x, position.y))
             )
         else:
-            beacon = Beacon(name, position, range_model)
+            beacon = Beacon3(name, position, range_model)
             self._beacons.append(beacon)
             self._factor_graph.add_landmark_variable(
                 LandmarkVariable3D(name, (position.x, position.y, position.z))

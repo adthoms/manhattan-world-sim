@@ -140,11 +140,11 @@ class OdomMeasurement2(OdomMeasurement):
 
     @property
     def translation_precision(self) -> float:
-        return get_measurement_precisions_from_covariance_matrix(self.covariance, matrix_dim=2)[0]
+        return get_measurement_precisions_from_covariance_matrix(self.covariance, matrix_dim=3)[0]
 
     @property
     def rotation_precision(self) -> float:
-        return get_measurement_precisions_from_covariance_matrix(self.covariance, matrix_dim=2)[0]
+        return get_measurement_precisions_from_covariance_matrix(self.covariance, matrix_dim=3)[1]
 
 class OdomMeasurement3(OdomMeasurement):
     """
@@ -175,8 +175,8 @@ class OdomMeasurement3(OdomMeasurement):
 
     @property
     def translation_precision(self) -> float:
-        return get_measurement_precisions_from_covariance_matrix(self.covariance, matrix_dim=3)[0]
+        return get_measurement_precisions_from_covariance_matrix(self.covariance, matrix_dim=6)[0]
 
     @property
     def rotation_precision(self) -> float:
-        return get_measurement_precisions_from_covariance_matrix(self.covariance, matrix_dim=3)[0]
+        return get_measurement_precisions_from_covariance_matrix(self.covariance, matrix_dim=6)[1]
