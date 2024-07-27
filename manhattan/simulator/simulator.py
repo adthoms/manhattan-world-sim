@@ -41,7 +41,7 @@ from manhattan.noise_models.loop_closure_model import (
     GaussianLoopClosureModel2 as GaussLoopClosureSensor2,
     GaussianLoopClosureModel3 as GaussLoopClosureSensor3
 )
-from manhattan.utils.mat_utils import get_rot_matrix_from_rpy
+from manhattan.utils.geo_utils import get_rot_matrix_from_rpy
 from manhattan.utils.sample_utils import choice
 from manhattan.utils.attrib_utils import (
     dimension_validator,
@@ -123,7 +123,7 @@ class SimulationParams:
             n poses from LC candidates
     """
 
-    dimension: int = attr.ib(default=DIM.TWO, validator=dimension_validator)
+    dimension: DIM = attr.ib(default=DIM.TWO, validator=dimension_validator)
     num_robots: int = attr.ib(default=1, validator=positive_int_validator)
     num_beacons: int = attr.ib(default=0, validator=positive_int_validator)
     grid_shape: Tuple[int, int] = attr.ib(
@@ -289,6 +289,7 @@ class ManhattanSimulator:
         self._env = ManhattanWorld(
             dim=sim_params.dimension,
             grid_vertices_shape=sim_params.grid_shape,
+            z_steps_to_intersection=sim_params.z_steps_to_intersection,
             y_steps_to_intersection=sim_params.y_steps_to_intersection,
             x_steps_to_intersection=sim_params.x_steps_to_intersection,
             cell_scale=sim_params.cell_scale,
@@ -748,6 +749,8 @@ class ManhattanSimulator:
             if len(possible_moves) == 0:
                 possible_moves.append(self._env.get_vertex_behind_robot(robot))
 
+            # print(possible_moves)
+
             if (self._dim == DIM.TWO):
                 # randomly select a move from the list
                 move = choice(possible_moves)
@@ -806,15 +809,21 @@ class ManhattanSimulator:
                     base_frame=robot.pose.local_frame,
                 )
 
+                # move the robot and store the measurement and new pose
+                odom_measurement = robot.move(
+                    move_transform, self.sim_params.groundtruth_measurements
+                )
+
                 cur_pose = robot.pose
                 self._factor_graph.add_pose_variable(
                     PoseVariable3D(
                         cur_pose.local_frame,
-                        (cur_pose.x, cur_pose.y, cur_pose.z),
+                        (float(cur_pose.x), float(cur_pose.y), float(cur_pose.z)),
                         cur_pose.rot.matrix,
-                        self._timestep,
+                        float(self._timestep),
                     )
                 )
+                self._store_odometry_measurement(robot_idx, odom_measurement)
 
             # make sure nothing weird happened with the timesteps
             assert self.timestep == robot.timestep

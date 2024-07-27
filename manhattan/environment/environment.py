@@ -11,6 +11,7 @@ from matplotlib.axes import Axes
 from manhattan.geometry.Elements import Point, Point3, SE2Pose, Point2, SE3Pose, SEPose, DIM
 from manhattan.agent.agent import Robot
 from manhattan.utils.sample_utils import choice
+from manhattan.utils.geo_utils import bearing_is_behind_robot
 
 
 def _find_nearest(
@@ -424,7 +425,7 @@ class ManhattanWorld:
             assert len(feasible_neighbor_verts) <= 4
             return feasible_neighbor_verts
         else:
-            assert 3 <= len(neighbor_verts) <= 6
+            assert 2 <= len(neighbor_verts) <= 6
 
             feasible_neighbor_verts = [
                 v for v in neighbor_verts if self.vertex_is_robot_feasible(v)
@@ -465,12 +466,13 @@ class ManhattanWorld:
             ]
             assert len(neighboring_feasible_pts) <= 4
 
+            print("Printing not behind vertices")
+            print("Robot: " + str(robot_pose.point))
             not_behind_pts = []
             for pt in neighboring_feasible_pts:
                 distance, bearing = robot_pose.range_and_bearing_to_point(pt)
                 if np.abs(bearing) < (np.pi / 2) + self._tol:
                     not_behind_pts.append((pt, bearing))
-
             return not_behind_pts
         else:
             # get robot vertex
@@ -497,12 +499,13 @@ class ManhattanWorld:
                 local_diff_pt = robot_pose.rot.unrotate_point(diff_pt)
                 roll = math.atan2(local_diff_pt.z, local_diff_pt.y)
 
+                # What counts as behind the robot?
                 distance, bearing = robot_pose.range_and_bearing_to_point(pt)
-                if (np.abs(bearing[0]) < (np.pi / 2) + self._tol) and (np.abs(bearing[1]) < (np.pi / 2) + self._tol):
+                if (not bearing_is_behind_robot(bearing[1], bearing[0], self._tol)):
                     not_behind_pts.append((pt, (roll, bearing[0], bearing[1])))
             return not_behind_pts
 
-    def get_vertex_behind_robot(self, robot: Robot) -> Union[List[Tuple[Point2, float]], List[Tuple[Point3, Tuple[float, float]]]]:
+    def get_vertex_behind_robot(self, robot: Robot) -> Union[List[Tuple[Point2, float]], List[Tuple[Point3, Tuple[float, float, float]]]]:
         """get the vertex that is behind the robot
 
         Args:
@@ -528,17 +531,26 @@ class ManhattanWorld:
             self.vertex2point(v) for v in neighboring_feasible_vertices
         ]
 
+        # print(robot_pose.point)
+
         for pt in neighboring_feasible_pts:
             distance, bearing = robot_pose.range_and_bearing_to_point(pt)
+            print(pt)
 
             if (self.dim == DIM.TWO):
                 # 2D: Any bearing between 90 and 270 degrees is behind the robot
                 if np.abs(bearing) > (np.pi / 2) + self._tol:
                     return (pt, bearing)
             else:
-                # 3D: any bearing where abs(atan2(y, x)) > 90 degrees and abs(atan2(z, x)) > 90 degrees is behind the robot
-                if (np.abs(bearing[0]) > (np.pi / 2) + self._tol) and (np.abs(bearing[1]) > (np.pi / 2) + self._tol):
-                    return (pt, bearing)
+                # 3D: bearing only encodes yaw and pitch, must calculate roll for use in simulator.py
+                diff_pt = pt - robot_pose.point
+                assert isinstance(diff_pt, Point3)
+                assert robot_pose.base_frame == diff_pt.frame
+                local_diff_pt = robot_pose.rot.unrotate_point(diff_pt)
+                roll = math.atan2(local_diff_pt.z, local_diff_pt.y)
+
+                if (bearing_is_behind_robot(bearing[1], bearing[0], self._tol)):
+                    return (pt, (roll, bearing[0], bearing[1]))
 
     def get_random_robot_pose(self, local_frame: str) -> POSE_TYPES:
         """Returns a random, feasible robot pose located on a corner in the
@@ -549,7 +561,6 @@ class ManhattanWorld:
         Returns:
             SE2Pose: a random, feasible robot pose
         """
-        # TODO: Extend to 3D domain
 
         if (self.dim == DIM.TWO):
             feasible_x_vals = (self._min_x_coord_feasible < self._x_coords) & (
@@ -672,11 +683,7 @@ class ManhattanWorld:
             # combination of all possible verts on the grid
             possible_verts = itertools.product(x_idxs, y_idxs, z_idxs)
 
-            # print(self._xv)
-            # print(self._yv)
-            # print(self._zv)
 
-            print(self._robot_feasibility)
 
             # prune out the infeasible vertices
             feasible_verts = [
@@ -761,19 +768,13 @@ class ManhattanWorld:
         Returns:
             Tuple[float, float]: (x, y) coordinates
         """
-        # TODO: Extend to 3D domain
 
         assert self.check_vertex_valid(vert)
 
         if (self.dim == DIM.TWO):
-            # print("xv: " + str(self._xv))
-            # print("yv: " + str(self._yv))
             i, j = vert
             return (self._xv[i, j], self._yv[i, j])
         else:
-            # print("xv: " + str(self._xv))
-            # print("yv: " + str(self._yv))
-            # print("zv: " + str(self._zv))
             i, j, k = vert
             return (self._xv[i, j, k], self._yv[i, j, k], self._zv[i, j, k])
 

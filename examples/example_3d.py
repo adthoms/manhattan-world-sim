@@ -4,6 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath(".."))
 
+from manhattan.geometry.Elements import DIM
 from manhattan.simulator.simulator import ManhattanSimulator, SimulationParams
 
 show_animation = False
@@ -17,11 +18,13 @@ seed_cnt = 0
 num_timesteps = 100
 
 sim_args = SimulationParams(
+    dimension=DIM.THREE,
     num_robots=1,
     num_beacons=num_beacons,
-    grid_shape=(grid_len, grid_len),
-    y_steps_to_intersection=2,
-    x_steps_to_intersection=3,
+    grid_shape=(grid_len, grid_len, grid_len),
+    z_steps_to_intersection=3, # NEED TO ASSERT THIS
+    y_steps_to_intersection=3,
+    x_steps_to_intersection=5,
     cell_scale=1.0,
     range_sensing_prob=range_prob,
     range_sensing_radius=100.0,
@@ -34,10 +37,12 @@ sim_args = SimulationParams(
     range_stddev=dist_stddev,
     odom_x_stddev=pos_stddev,
     odom_y_stddev=pos_stddev,
-    odom_theta_stddev=theta_stddev,
+    odom_z_stddev=pos_stddev,
+    odom_rpy_stddev=(theta_stddev, theta_stddev, theta_stddev),
     loop_x_stddev=pos_stddev,
     loop_y_stddev=pos_stddev,
-    loop_theta_stddev=theta_stddev,
+    loop_z_stddev=pos_stddev,
+    loop_rpy_stddev=(theta_stddev, theta_stddev, theta_stddev),
     debug_mode=False,
     seed_num=(seed_cnt + 1) * 9999,
     groundtruth_measurements=True,
