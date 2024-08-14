@@ -11,7 +11,7 @@ from matplotlib.axes import Axes
 from manhattan.geometry.Elements import Point, Point3, SE2Pose, Point2, SE3Pose, SEPose, DIM
 from manhattan.agent.agent import Robot
 from manhattan.utils.sample_utils import choice
-from manhattan.utils.geo_utils import bearing_is_behind_robot
+from manhattan.utils.geo_utils import bearing_is_behind_robot, fpe_fix
 
 
 def _find_nearest(
@@ -467,7 +467,8 @@ class ManhattanWorld:
             assert len(neighboring_feasible_pts) <= 4
 
             print("Printing not behind vertices")
-            print("Robot: " + str(robot_pose.point))
+            print("Robot: " + str(robot_pose.point) + " " + str(robot_pose.rot))
+            print(neighboring_feasible_vertices)
             not_behind_pts = []
             for pt in neighboring_feasible_pts:
                 distance, bearing = robot_pose.range_and_bearing_to_point(pt)
@@ -490,19 +491,24 @@ class ManhattanWorld:
 
             assert len(neighboring_feasible_pts) <= 6
             
+            print("Printing not behind vertices")
+            print("Robot: " + str(robot_pose.point) + " " + str(robot_pose.rot))
+            print(neighboring_feasible_vertices)
+            
             not_behind_pts = []
             for pt in neighboring_feasible_pts:
-                # bearing only encodes pitch and yaw, must calculate roll
+                # 3D: bearing only encodes yaw and pitch, must calculate roll for use in simulator.py
                 diff_pt = pt - robot_pose.point
                 assert isinstance(diff_pt, Point3)
                 assert robot_pose.base_frame == diff_pt.frame
-                local_diff_pt = robot_pose.rot.unrotate_point(diff_pt)
-                roll = math.atan2(local_diff_pt.z, local_diff_pt.y)
+                local_diff_pt = fpe_fix(robot_pose.rot.unrotate_point(diff_pt), self._tol)
+                roll = math.atan2(local_diff_pt.z, local_diff_pt.y) # TODO: CHECK THIS CALCULATION; ALSO FIX IT IN get_vertex_behind_robot
 
-                # What counts as behind the robot?
+                # bearing is (yaw, pitch)
                 distance, bearing = robot_pose.range_and_bearing_to_point(pt)
                 if (not bearing_is_behind_robot(bearing[1], bearing[0], self._tol)):
-                    not_behind_pts.append((pt, (roll, bearing[0], bearing[1])))
+                    # (point, (roll, pitch, yaw))
+                    not_behind_pts.append((fpe_fix(pt, self._tol), (0.0, bearing[1], bearing[0])))
             return not_behind_pts
 
     def get_vertex_behind_robot(self, robot: Robot) -> Union[List[Tuple[Point2, float]], List[Tuple[Point3, Tuple[float, float, float]]]]:
@@ -546,11 +552,11 @@ class ManhattanWorld:
                 diff_pt = pt - robot_pose.point
                 assert isinstance(diff_pt, Point3)
                 assert robot_pose.base_frame == diff_pt.frame
-                local_diff_pt = robot_pose.rot.unrotate_point(diff_pt)
-                roll = math.atan2(local_diff_pt.z, local_diff_pt.y)
+                local_diff_pt = fpe_fix(robot_pose.rot.unrotate_point(diff_pt), self._tol)
+                roll = math.atan2(local_diff_pt.z, local_diff_pt.y) # TODO: CHECK THIS CALCULATION
 
                 if (bearing_is_behind_robot(bearing[1], bearing[0], self._tol)):
-                    return (pt, (roll, bearing[0], bearing[1]))
+                    return (fpe_fix(pt, self._tol), (0.0, bearing[1], bearing[0]))
 
     def get_random_robot_pose(self, local_frame: str) -> POSE_TYPES:
         """Returns a random, feasible robot pose located on a corner in the

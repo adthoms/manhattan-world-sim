@@ -2,12 +2,16 @@ import os
 from os.path import join, expanduser
 import sys
 
+from matplotlib import pyplot as plt
+
 sys.path.insert(0, os.path.abspath(".."))
 
 from manhattan.geometry.Elements import DIM
 from manhattan.simulator.simulator import ManhattanSimulator, SimulationParams
 
-show_animation = False
+import matplotlib.animation as animation
+
+show_animation = True
 num_beacons = 1
 grid_len = 30
 range_prob = 0.25
@@ -15,7 +19,7 @@ dist_stddev = 0.1
 pos_stddev = 0.1
 theta_stddev = 0.1
 seed_cnt = 0
-num_timesteps = 100
+num_timesteps = 10
 
 sim_args = SimulationParams(
     dimension=DIM.THREE,
@@ -55,12 +59,17 @@ if show_animation:
     sim.plot_grid()
     sim.plot_beacons()
 
-for _ in range(num_timesteps):
+for i in range(num_timesteps):
     sim.random_step()
 
     if show_animation:
+        # print("Plotting...")
         sim.plot_robot_states()
         sim.show_plot(animation=True)
+        plt.savefig(f'seq3/plot{i}.jpg')
+        print()
+
+plt.savefig('plot.gif')
 
 if show_animation:
     sim.close_plot()

@@ -788,12 +788,18 @@ class ManhattanSimulator:
                 )
                 self._store_odometry_measurement(robot_idx, odom_measurement)
             else:
+                # TODO: Translation measurements conform with vertex constraints, but rotation measurements are generated that do not conform with manhattan angles.
+                # Check get_neighboring_robot_vertices_not_behind_robot and get_vertex_not_behind_robot for roll, pitch, and yaw
                 move = choice(possible_moves)
                 move_pt: Point3 = move[0]
                 roll, pitch, yaw = move[1]
 
+                print("Chosen move: " + str(move_pt))
+
                 # get the move in the robot local frame
                 move_pt_local = robot.pose.transform_base_point_to_local(move_pt)
+
+                print("Chosen move local: " + str(move_pt_local))
 
                 # frame name represents robot and timestep
                 move_frame_name = f"{robot.name}{robot.timestep+1}"
@@ -1327,7 +1333,8 @@ class ManhattanSimulator:
         # this allows us to more efficiently update the animation
         for robot_plot_obj in self._robot_plot_objects:
             if robot_plot_obj in self.ax.lines:
-                self.ax.lines.remove(robot_plot_obj)
+                # self.ax.remove(robot_plot_obj)
+                robot_plot_obj.remove()
 
         self._robot_plot_objects.clear()
 

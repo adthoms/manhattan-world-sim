@@ -3,6 +3,9 @@ import numpy as np
 from numpy import ndarray
 import math
 
+# from manhattan.geometry.Elements import Point3
+import manhattan.geometry.Elements as Elements
+
 def get_rot_matrix_from_rpy(rpy: Tuple[float, float, float]) -> np.ndarray:
     """
     Return the rotation matrix from roll, pitch, yaw.
@@ -54,3 +57,15 @@ def bearing_is_behind_robot(pitch: float, yaw: float, tolerance: float) -> bool:
     pitch_greater = bool(abs(pitch) > math.pi / 2 + tolerance)
     yaw_greater = bool(abs(yaw) > math.pi / 2 + tolerance)
     return pitch_greater ^ yaw_greater
+
+def fpe_fix(point: Elements.Point3, tolerance: float) -> Elements.Point3:
+    """Simulator will generate vertices functionally equivalent to 0, but with floating point error.
+    atan2 will factor in this error, producing non-zero angles. This function will set these vertices to 0.
+    """
+    if abs(point.x) < tolerance:
+        point.x = 0.0
+    if abs(point.y) < tolerance:
+        point.y = 0.0
+    if abs(point.z) < tolerance:
+        point.z = 0.0
+    return point

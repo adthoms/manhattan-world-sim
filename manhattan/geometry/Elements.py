@@ -57,6 +57,14 @@ def none_to_zero(x: Optional[float]) -> float:
 def wrap_angle_to_pipi(theta: float):
     return (theta + np.pi) % (2 * np.pi) - np.pi
 
+def atan2_fpe(y: float, x: float, tolerance: float = 1e-7) -> float:
+        """Return the arc tangent of y/x in radians; accounts for floating-point error."""
+        if (y < tolerance):
+            y = 0.0
+        if (x < tolerance):
+            x = 0.0
+        return math.atan2(y, x)
+
 
 class Point(ABC):
     def __init__(self, dim: DIM, x: float, y: float, z: float, frame: str) -> None:
@@ -809,7 +817,10 @@ class Rot3(Rot):
         assert isinstance(base_frame_pt, Point3)
         assert self.base_frame == base_frame_pt.frame
         local_pt = self.unrotate_point(base_frame_pt)
-        return math.atan2(local_pt.y, local_pt.x), math.atan2(local_pt.z, local_pt.x)
+        print("Rotated pt: " + str(base_frame_pt))
+        print("Unrotated pt: " + str(local_pt))
+
+        return atan2_fpe(local_pt.y, math.sqrt(local_pt.z**2 + local_pt.x**2)), atan2_fpe(local_pt.z, local_pt.x)
 
     @overload
     def __mul__(self, other: "Rot3") -> "Rot3":

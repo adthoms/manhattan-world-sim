@@ -269,6 +269,8 @@ class Robot2(Robot):
 
         cur_position = self.position
 
+        print(self.pose)
+
         heading_tol = 1e-8
         if abs(self.heading) < heading_tol:
             return plt.plot(cur_position.x, cur_position.y, "b>", markersize=10)
@@ -352,9 +354,13 @@ class Robot3(Robot):
 
         assert isinstance(transform, SE3Pose)
 
+        print(f"Roll: {transform.rot.roll}, Pitch: {transform.rot.pitch}, Yaw: {transform.rot.yaw}")
+
         # move the robot
         self._pose = self._pose * transform
         self._increment_timestep()
+
+        print("Moving: " + str(transform))
 
         # if gt measure then just fake the noise and return the true transform
         # as the measurement
@@ -378,6 +384,7 @@ class Robot3(Robot):
         heading_tol = 1e-8
         plt.axes(projection='3d')
         heading_yaw = self.heading[2]
+        print(self.pose)
 
         # Only handles yaw angles of pi/2, pi, -pi/2, and 0
         if abs(heading_yaw) < heading_tol:

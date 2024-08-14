@@ -1285,7 +1285,8 @@ class TestGeometry(unittest.TestCase):
 
     # Transform base point to local
     def test_pose_base_point_to_local(self) -> None:
-        theta_1 = math.pi / 2
+        # theta_1 = math.pi / 2
+        theta_1 = -math.pi / 2
         test_rot_1 = Rot2(theta_1, FRAME_1, FRAME_2)
 
         roll_2 = math.pi
@@ -1293,12 +1294,14 @@ class TestGeometry(unittest.TestCase):
         yaw_2 = math.pi / 4
         test_rot_2 = Rot3(roll_2, pitch_2, yaw_2, FRAME_1, FRAME_2)
 
-        x_1 = 42.5123
-        y_1 = 23.4530
+        # x_1 = 42.5123
+        # y_1 = 23.4530
+        x_1 = 3.0
+        y_1 = 0.0
         test_point_1 = Point2(x_1, y_1, FRAME_2)
 
-        x_2 = 12.0923
-        y_2 = 9.576
+        x_2 = 3.0
+        y_2 = 1.0
         test_point_2 = Point2(x_2, y_2, FRAME_2)
 
         x_3 = 0.1233
@@ -1333,6 +1336,24 @@ class TestGeometry(unittest.TestCase):
             test_pose_1.transform_base_point_to_local(test_point_3)
         with self.assertRaises(AssertionError):
             test_pose_2.transform_base_point_to_local(test_point_6)
+
+        print(test_pose_1)
+        print(test_pose_1.copyInverse())
+        print(test_point_2)
+
+        # pose.copyInverse() * point
+        # copyInverse returns the inverse pose: inv_pose * pose * point = point
+        # inv_pose_rot * point + inv_pose_pt
+        # When treating the current bearing of the pose as 0 degrees, 
+        # this function outputs the translation relative from the original pose to the new point
+
+        # For example, (3.0, 0.0) with a bearing of 0 degrees, and a new point (3.0, 1.0), the output is (0.0, 1.0)
+        # (3.0, 0.0) with a bearing of 180 degrees, and a new point (3.0, 1.0), the output is (0.0, -1.0)
+        # (3.0, 0.0) with a bearing of 90 degrees, and a new point (3.0, 1.0), the output is (1.0, 0.0)
+        # (3.0, 0.0) with a bearing of -90 degrees, and a new point (3.0, 1.0), the output is (-1.0, 0.0)
+        print(test_pose_1.transform_base_point_to_local(test_point_2))
+
+        # The non-manhattan angles in simulator.py is due to the calculation of rpy in bearing
 
         self.assertTrue(test_pose_1.transform_base_point_to_local(test_point_2) == test_rot_1.copyInverse() * test_point_2 + test_rot_1.copyInverse() * test_point_1.copyInverse())
         self.assertTrue(test_pose_2.transform_base_point_to_local(test_point_5) == test_rot_2.copyInverse() * test_point_5 + test_rot_2.copyInverse() * test_point_4.copyInverse())
