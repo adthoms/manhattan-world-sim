@@ -482,6 +482,8 @@ class ManhattanWorld:
 
             # get neighboring vertices in the robot feasible space
             neighboring_feasible_vertices = self.get_neighboring_robot_vertices(robot_vert)
+            print("Printing neighboring vertices")
+            print(neighboring_feasible_vertices)
             assert self.check_vertex_list_valid(neighboring_feasible_vertices)
 
             # convert vertices to points
@@ -497,13 +499,6 @@ class ManhattanWorld:
             
             not_behind_pts = []
             for pt in neighboring_feasible_pts:
-                # 3D: bearing only encodes yaw and pitch, must calculate roll for use in simulator.py
-                diff_pt = pt - robot_pose.point
-                assert isinstance(diff_pt, Point3)
-                assert robot_pose.base_frame == diff_pt.frame
-                local_diff_pt = fpe_fix(robot_pose.rot.unrotate_point(diff_pt), self._tol)
-                roll = math.atan2(local_diff_pt.z, local_diff_pt.y) # TODO: CHECK THIS CALCULATION; ALSO FIX IT IN get_vertex_behind_robot
-
                 # bearing is (yaw, pitch)
                 distance, bearing = robot_pose.range_and_bearing_to_point(pt)
                 if (not bearing_is_behind_robot(bearing[1], bearing[0], self._tol)):
@@ -548,13 +543,6 @@ class ManhattanWorld:
                 if np.abs(bearing) > (np.pi / 2) + self._tol:
                     return (pt, bearing)
             else:
-                # 3D: bearing only encodes yaw and pitch, must calculate roll for use in simulator.py
-                diff_pt = pt - robot_pose.point
-                assert isinstance(diff_pt, Point3)
-                assert robot_pose.base_frame == diff_pt.frame
-                local_diff_pt = fpe_fix(robot_pose.rot.unrotate_point(diff_pt), self._tol)
-                roll = math.atan2(local_diff_pt.z, local_diff_pt.y) # TODO: CHECK THIS CALCULATION
-
                 if (bearing_is_behind_robot(bearing[1], bearing[0], self._tol)):
                     return (fpe_fix(pt, self._tol), (0.0, bearing[1], bearing[0]))
 
@@ -1043,7 +1031,7 @@ class ManhattanWorld:
                 self._num_z_pts,
             )
 
-            # get rows and cols that the robot is allowed to travel on
+            """# get rows and cols that the robot is allowed to travel on
             x_pts = np.arange(self._num_x_pts)
             valid_x = x_pts[x_pts % self._x_steps_to_intersection == 0]
             valid_x = self._scale * valid_x
@@ -1097,6 +1085,51 @@ class ManhattanWorld:
                                 self._xv[i, j, k],
                                 self._yv[i, j, k],
                                 self._zv[i, j, k],
+                                "go",
+                                markersize=3,
+                            )"""
+            # get rows and cols that the robot is allowed to travel on
+            x_pts = np.arange(self._num_x_pts)
+            valid_x = x_pts[x_pts % self._x_steps_to_intersection == 0]
+            valid_x = self._scale * valid_x
+
+            y_pts = np.arange(self._num_y_pts)
+            valid_y = y_pts[y_pts % self._y_steps_to_intersection == 0]
+            valid_y = self._scale * valid_y
+
+            # the bounds of the valid x and y values
+            max_x = np.max(valid_x)
+            min_x = np.min(valid_x)
+            max_y = np.max(valid_y)
+            min_y = np.min(valid_y)
+
+            # plot the travelable rows and columns
+            ax.vlines(valid_x, min_y, max_y)
+            ax.hlines(valid_y, min_x, max_x)
+
+            for i in range(self._num_x_pts):
+                for j in range(self._num_y_pts):
+                    for k in range(self._num_z_pts):
+
+                        # the robot should not be traveling on these locations
+                        if (
+                            i % self._x_steps_to_intersection != 0
+                            and j % self._y_steps_to_intersection != 0
+                            # and k % self._z_steps_to_intersection != 0
+                        ):
+                            continue
+
+                        if self._robot_feasibility[i, j, k]:
+                            ax.plot(
+                                self._xv[i, j, k],
+                                self._yv[i, j, k],
+                                "ro",
+                                markersize=3,
+                            )
+                        else:
+                            ax.plot(
+                                self._xv[i, j, k],
+                                self._yv[i, j, k],
                                 "go",
                                 markersize=3,
                             )

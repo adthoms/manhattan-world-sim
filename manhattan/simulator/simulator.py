@@ -383,12 +383,11 @@ class ManhattanSimulator:
             self.ax.set_xlim(x_lb - 1, x_ub + 1)
             self.ax.set_ylim(y_lb - 1, y_ub + 1)
         else:
-            self.fig = plt.figure()
-            self.ax = self.fig.add_subplot(111, projection='3d')
+            self.fig, self.ax = plt.subplots()
             x_lb, y_lb, z_lb, x_ub, y_ub, z_ub = self._env.bounds
-            self.ax.set_xlim3d(x_lb - 1, x_ub + 1)
-            self.ax.set_ylim3d(y_lb - 1, y_ub + 1)
-            self.ax.set_zlim3d(z_lb - 1, z_ub + 1)
+            self.ax.set_xlim(x_lb - 1, x_ub + 1)
+            self.ax.set_ylim(y_lb - 1, y_ub + 1)
+            # self.ax.set_zlim3d(z_lb - 1, z_ub + 1)
 
     # make a destructor to close the plot
     def __del__(self) -> None:

@@ -1,6 +1,7 @@
 import os
 from os.path import join, expanduser
 import sys
+import random
 
 from matplotlib import pyplot as plt
 
@@ -18,8 +19,8 @@ range_prob = 0.25
 dist_stddev = 0.1
 pos_stddev = 0.1
 theta_stddev = 0.1
-seed_cnt = 0
-num_timesteps = 10
+seed_cnt = 256
+num_timesteps = 20
 
 sim_args = SimulationParams(
     dimension=DIM.THREE,

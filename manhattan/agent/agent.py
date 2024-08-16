@@ -379,25 +379,33 @@ class Robot3(Robot):
     def plot(self) -> None:
         """Plots the robot's groundtruth position"""
 
+        # color intensity will correspond to the z value
+        colors = ["b", "g", "c", "m", "y", "k", "w"]
+
         cur_position = self.position
 
-        heading_tol = 1e-8
-        plt.axes(projection='3d')
-        heading_yaw = self.heading[2]
-        print(self.pose)
+        roll, pitch, yaw = self.heading
 
-        # Only handles yaw angles of pi/2, pi, -pi/2, and 0
-        if abs(heading_yaw) < heading_tol:
-            return plt.plot(cur_position.x, cur_position.y, cur_position.z, "b>", markersize=10)
-        elif abs(heading_yaw - (np.pi / 2.0)) < heading_tol:
-            return plt.plot(cur_position.x, cur_position.y, cur_position.z, "b^", markersize=10)
-        elif (
-            abs(heading_yaw + np.pi) < heading_tol
-            or abs(heading_yaw - np.pi) < heading_tol
+        print(self.pose)
+        cur_color = colors[int(round(cur_position.z)) % len(colors)]
+
+        heading_tol = 1e-8
+        if abs(pitch - (np.pi / 2.0)) < heading_tol: # 90 degrees on y-axis; heading "down"
+            return plt.plot(cur_position.x, cur_position.y, f"{cur_color}x", markersize=10)
+        elif abs(pitch + (np.pi / 2.0)) < heading_tol: # 270 degrees on y-axis; heading "up"
+            return plt.plot(cur_position.x, cur_position.y, f"{cur_color}o", markersize=10)
+        elif abs(yaw - (np.pi / 2.0)) < heading_tol: # 90 degrees on z-axis; heading north
+            return plt.plot(cur_position.x, cur_position.y, f"{cur_color}^", markersize=10)
+        elif ( # 180 degrees on z-axis; heading west
+            abs(yaw + np.pi) < heading_tol
+            or abs(yaw - np.pi) < heading_tol
+            or abs(pitch - np.pi) < heading_tol
         ):
-            return plt.plot(cur_position.x, cur_position.y, cur_position.z, "b<", markersize=10)
-        elif abs(heading_yaw + (np.pi / 2.0)) < heading_tol:
-            return plt.plot(cur_position.x, cur_position.y, cur_position.z, "bv", markersize=10)
+            return plt.plot(cur_position.x, cur_position.y, f"{cur_color}<", markersize=10)
+        elif abs(yaw + (np.pi / 2.0)) < heading_tol: # 270 degrees on z-axis; heading south
+            return plt.plot(cur_position.x, cur_position.y, f"{cur_color}v", markersize=10)
+        elif (abs(yaw) < heading_tol) or (abs(pitch) < heading_tol): # 0 degrees on z-axis; heading east
+            return plt.plot(cur_position.x, cur_position.y, f"{cur_color}>", markersize=10)
         else:
             raise NotImplementedError(f"Unhandled heading: {self.heading}")
 
@@ -459,5 +467,6 @@ class Beacon3(Beacon):
     def plot(self) -> None:
         """Plots the beacons's groundtruth position"""
         cur_position = self.position
-        plt.axes(projection='3d')
-        return plt.plot(cur_position.x, cur_position.y, cur_position.z, "g*", markersize=10)
+        # plt.axes(projection='3d')
+        # return plt.plot(cur_position.x, cur_position.y, cur_position.z, "g*", markersize=10)
+        return plt.plot(cur_position.x, cur_position.y, "g*", markersize=10)

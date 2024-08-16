@@ -98,16 +98,30 @@ class TestVisualization(unittest.TestCase):
         pass
 
 class TestSimulator(unittest.TestCase):
+    def test_neighbors(self):
+        man_env = ManhattanWorld(
+            dim=DIM.THREE,
+            grid_vertices_shape=(4, 4, 4),
+            z_steps_to_intersection=2,
+            y_steps_to_intersection=2,
+            x_steps_to_intersection=2,
+            cell_scale=1.0,
+        )
+
+        print(man_env.get_neighboring_vertices((2, 2, 2)))
+
+    def test_bearing(self):
+        start_pose = SE3Pose.by_point_and_rotation(Point3(0.0, 0.0, 0.0, "world"), Rot3(0.0, 0.0, 0.0, "", "world"), "", "world")
+        test_pt = Point3(0.0, 0.0, 1.0, "world")
+        yaw, pitch = start_pose.range_and_bearing_to_point(test_pt)[1]
+        print((0.0, pitch, yaw))
+
     def test_sim_measurements(self):
         def check_rot_is_manhattan(pose: SE3Pose, tol: float = 1e-2):
-            is_manhattan = True
             for angle in pose.rot.angles:
                 self.assertTrue(math.isclose(abs(angle), 0.0, abs_tol=tol) or 
                                 math.isclose(abs(angle), math.pi/2, abs_tol=tol) or
                                 math.isclose(abs(angle), math.pi, abs_tol=tol))
-                # if not (math.isclose(abs(angle), 0.0, abs_tol=tol) or math.isclose(abs(angle), math.pi/2, abs_tol=tol) or math.isclose(abs(angle), math.pi, abs_tol=tol)):
-                #    is_manhattan = False
-            # return is_manhattan
                 
         start_pose = SE3Pose.by_point_and_rotation(Point3(0.0, 0.0, 0.0, "world"), Rot3(0.0, 0.0, 0.0, "", "world"), "", "world")
         range_model = ConstGaussRangeSensor(
@@ -124,13 +138,13 @@ class TestSimulator(unittest.TestCase):
         robot = Robot3("A", start_pose, range_model, odometry_model, loop_closure_model)
         man_env = ManhattanWorld(
             dim=DIM.THREE,
-            grid_vertices_shape=(4, 4, 4),
+            grid_vertices_shape=(30, 30, 30),
             z_steps_to_intersection=2,
             y_steps_to_intersection=2,
             x_steps_to_intersection=2,
             cell_scale=1.0,
         )
-        num_iters = 50
+        num_iters = 10
         tol = 1e-2
 
         for _ in range(num_iters):
@@ -160,27 +174,27 @@ class TestSimulator(unittest.TestCase):
                 base_frame=robot.pose.local_frame,
             )
 
-            prev_x = robot.pose.point.x
-            prev_y = robot.pose.point.y
-            prev_z = robot.pose.point.z
+            prev_pose = robot.pose
 
             # move the robot and store the measurement and new pose
             robot.move(
                 move_transform, True
             )
 
-            cur_x = robot.pose.point.x
-            cur_y = robot.pose.point.y
-            cur_z = robot.pose.point.z
-
             # check that the robot moved correctly
             check_rot_is_manhattan(robot.pose)
-            # if (not check_rot_is_manhattan(robot.pose)):
-            #    print("Pose is not manhattan")
 
-            # self.assertAlmostEqual(cur_x, prev_x + move_pt_local.x)
-            # self.assertAlmostEqual(cur_y, prev_y + move_pt_local.y)
-            # self.assertAlmostEqual(cur_z, prev_z + move_pt_local.z)
+            # check that robot moved by exactly one vertex
+            self.assertAlmostEqual(abs(move_pt_local.x) + abs(move_pt_local.y) + abs(move_pt_local.z), 1.0)
+
+            # check that robot is facing in only one direction; pitch and yaw cannot both be non-zero
+            is_pitch_nonzero = not math.isclose(abs(pitch), 0.0, abs_tol=tol)
+            is_yaw_nonzero = not math.isclose(abs(yaw), 0.0, abs_tol=tol)
+            self.assertTrue(not (is_pitch_nonzero and is_yaw_nonzero))
+
+
+            print("New robot pose: " + str(robot.pose))
+            print()
 
 
 if __name__ == "__main__":

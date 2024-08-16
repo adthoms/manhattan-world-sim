@@ -7,6 +7,22 @@ import numpy as np
 
 from manhattan.geometry.Elements import DIM, Point, Point2, Point3, Rot, Rot2, Rot3, SEPose, SE2Pose, SE3Pose
 from manhattan.environment.environment import ManhattanWorld
+from manhattan.agent.agent import Robot3
+from manhattan.noise_models.range_noise_model import (
+    RangeNoiseModel,
+    ConstantGaussianRangeNoiseModel as ConstGaussRangeSensor,
+    VaryingMeanGaussianRangeNoiseModel as VaryGaussRangeSensor,
+)
+from manhattan.noise_models.odom_noise_model import (
+    OdomNoiseModel,
+    GaussianOdomNoiseModel2 as GaussOdomSensor2,
+    GaussianOdomNoiseModel3 as GaussOdomSensor3
+)
+from manhattan.noise_models.loop_closure_model import (
+    LoopClosureModel,
+    GaussianLoopClosureModel2 as GaussLoopClosureSensor2,
+    GaussianLoopClosureModel3 as GaussLoopClosureSensor3
+)
 FRAME_1 = "odom"
 FRAME_2 = "world"
 FRAME_3 = "tool"
@@ -131,8 +147,28 @@ class TestGetterSetter(unittest.TestCase):
         self.assertTrue(np.array_equal(sorted_neighbors_3d, sorted_manhat_neighbors_3d))
     
     def test_get_neighboring_robot_vertices_not_behind_robot(self):
-        # Implemented in environment.py, must do unit test
-        pass
+
+        start_pose = SE3Pose.by_point_and_rotation(Point3(4.0, 4.0, 4.0, "world"), Rot3(0.0, 0.0, -math.pi / 2, "", "world"), "", "world")
+        range_model = ConstGaussRangeSensor(
+            mean=0.0, stddev=0.1
+        )
+        odometry_model = GaussOdomSensor3(
+            mean=np.zeros(6),
+            covariance=np.diag([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+        )
+        loop_closure_model = GaussLoopClosureSensor3(
+            mean=np.zeros(6),
+            covariance=np.diag([0.1, 0.1, 0.1, 0.1, 0.1, 0.1]),
+        )
+        robot = Robot3("A", start_pose, range_model, odometry_model, loop_closure_model)
+        vertices = manhat_intersect_3d.get_neighboring_robot_vertices_not_behind_robot(robot)
+        for point, rot in vertices:
+            x = point.x
+            y = point.y
+            z = point.z
+            # print(f"Point: ({x}, {y}, {z})", f"Rotation: {rot}")
+
+
 
     def test_get_vertex_behind_robot(self):
         # Implemented in environment.py, must do unit test
