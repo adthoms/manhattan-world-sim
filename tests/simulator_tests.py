@@ -144,7 +144,7 @@ class TestSimulator(unittest.TestCase):
             x_steps_to_intersection=2,
             cell_scale=1.0,
         )
-        num_iters = 10
+        num_iters = 500
         tol = 1e-2
 
         for _ in range(num_iters):

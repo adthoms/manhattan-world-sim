@@ -379,22 +379,33 @@ class ManhattanWorld:
             i, j, k = vert
             candidate_vertices = []
 
+            def _add_vertices_if_not_present(vertices: VERTEX_LIST_TYPES):
+                for c in vertices:
+                    if not c in candidate_vertices:
+                        candidate_vertices.append(c)
+
             # connectivity is based on whether we are at a corner or not
             # i is on the y-axis, j is on the x-axis, k is on the z-axis
-            if i % self._x_steps_to_intersection == 0:
-                candidate_vertices.append((i, j - 1, k))
-                candidate_vertices.append((i, j + 1, k))
-            if j % self._y_steps_to_intersection == 0:
-                candidate_vertices.append((i - 1, j, k))
-                candidate_vertices.append((i + 1, j, k))
-            if k % self._z_steps_to_intersection == 0:
-                candidate_vertices.append((i, j, k - 1))
-                candidate_vertices.append((i, j, k + 1))
-            
+            print("i: " + str(i) + " x steps: " + str(self._x_steps_to_intersection))
+            print("j: " + str(j) + " y steps: " + str(self._y_steps_to_intersection))
+            print("k: " + str(k) + " z steps: " + str(self._z_steps_to_intersection))
+
+            if (i % self._x_steps_to_intersection == 0) and (j % self._y_steps_to_intersection == 0):
+                cur_candidates = [(i, j, k - 1), (i, j, k + 1)]
+                _add_vertices_if_not_present(cur_candidates)
+            if (j % self._y_steps_to_intersection == 0) and (k % self._z_steps_to_intersection == 0):
+                cur_candidates = [(i - 1, j, k), (i + 1, j, k)]
+                _add_vertices_if_not_present(cur_candidates)
+            if (i % self._x_steps_to_intersection == 0) and (k % self._z_steps_to_intersection == 0):
+                cur_candidates = [(i, j - 1, k), (i, j + 1, k)]
+                _add_vertices_if_not_present(cur_candidates)
+                
+            print("Candidate vertices: " + str(candidate_vertices))
             # prune all vertices that are out of bounds
             vertices_in_bound = [
                 v for v in candidate_vertices if self.vertex_is_in_bounds(v)
             ]
+            print("Vertices in bound: " + str(vertices_in_bound))
             return vertices_in_bound
 
     def get_neighboring_robot_vertices(

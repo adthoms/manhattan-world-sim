@@ -74,7 +74,7 @@ manhat_scaled_3d = ManhattanWorld(dim=DIM.THREE, grid_vertices_shape=(9, 9, 9), 
 manhat_area_2d = ManhattanWorld(grid_vertices_shape=(9, 9), robot_area=[(1, 1), (5, 5)])
 manhat_area_3d = ManhattanWorld(dim=DIM.THREE, grid_vertices_shape=(9, 9, 9), robot_area=[(1, 1, 1), (5, 5, 5)])
 manhat_intersect_2d = ManhattanWorld(grid_vertices_shape=(9, 9), robot_area=[(1, 1), (5, 5)], x_steps_to_intersection=2, y_steps_to_intersection=2)
-manhat_intersect_3d = ManhattanWorld(dim=DIM.THREE, grid_vertices_shape=(9, 9, 9), robot_area=[(1, 1, 1), (5, 5, 5)], x_steps_to_intersection=2, y_steps_to_intersection=2, z_steps_to_intersection=2)
+manhat_intersect_3d = ManhattanWorld(dim=DIM.THREE, grid_vertices_shape=(9, 9, 9), x_steps_to_intersection=2, y_steps_to_intersection=2, z_steps_to_intersection=2)
 
 class TestGetterSetter(unittest.TestCase):
     def test_set_robot_area_feasibility(self):
@@ -148,7 +148,7 @@ class TestGetterSetter(unittest.TestCase):
     
     def test_get_neighboring_robot_vertices_not_behind_robot(self):
 
-        start_pose = SE3Pose.by_point_and_rotation(Point3(4.0, 4.0, 4.0, "world"), Rot3(0.0, 0.0, -math.pi / 2, "", "world"), "", "world")
+        start_pose = SE3Pose.by_point_and_rotation(Point3(2.0, 2.0, 2.0, "world"), Rot3(0.0, 0.0, 0.0, "", "world"), "", "world")
         range_model = ConstGaussRangeSensor(
             mean=0.0, stddev=0.1
         )
@@ -166,7 +166,8 @@ class TestGetterSetter(unittest.TestCase):
             x = point.x
             y = point.y
             z = point.z
-            # print(f"Point: ({x}, {y}, {z})", f"Rotation: {rot}")
+            print(f"Point: ({x}, {y}, {z})", f"Rotation: {rot}")
+        # print(manhat_intersect_3d._robot_feasibility)
 
 
 
