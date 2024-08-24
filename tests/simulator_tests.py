@@ -115,6 +115,15 @@ class TestSimulator(unittest.TestCase):
         test_pt = Point3(0.0, 0.0, 1.0, "world")
         yaw, pitch = start_pose.range_and_bearing_to_point(test_pt)[1]
         print((0.0, pitch, yaw))
+    
+    def test_pose_transform(self):
+        start_pose = SE3Pose.by_point_and_rotation(Point3(0.0, 3.0, 0.0, "world"), Rot3(-math.pi / 2, math.pi / 2, 0.0, "A5", "world"), "A5", "world")
+        print(start_pose.matrix)
+        transform_pose = SE3Pose.by_point_and_rotation(Point3(0.0, 0.0, 1.0, "A5"), Rot3(0.0, math.pi / 2, 0.0, "A6", "A5"), "A6", "A5")
+        print(transform_pose.matrix)
+        new_pose = start_pose * transform_pose
+        print(new_pose)
+        print(new_pose.matrix)
 
     def test_sim_measurements(self):
         def check_rot_is_manhattan(pose: SE3Pose, tol: float = 1e-2):
@@ -122,6 +131,44 @@ class TestSimulator(unittest.TestCase):
                 self.assertTrue(math.isclose(abs(angle), 0.0, abs_tol=tol) or 
                                 math.isclose(abs(angle), math.pi/2, abs_tol=tol) or
                                 math.isclose(abs(angle), math.pi, abs_tol=tol))
+                
+        def check_correct_bearing_and_movement(prev_pose: SE3Pose, new_pose: SE3Pose, heading_tol: float = 1e-2):
+            roll, pitch, yaw = new_pose.rot.angles
+
+            diff_pt = new_pose.point - prev_pose.point
+            diff_x, diff_y, diff_z = diff_pt.x, diff_pt.y, diff_pt.z
+
+            if abs(pitch - (np.pi / 2.0)) < heading_tol: # 90 degrees on y-axis; heading "down"
+                self.assertAlmostEqual(diff_x, 0.0)
+                self.assertAlmostEqual(diff_y, 0.0)
+                self.assertAlmostEqual(diff_z, -1.0)
+            elif abs(pitch + (np.pi / 2.0)) < heading_tol: # 270 degrees on y-axis; heading "up"
+                self.assertAlmostEqual(diff_x, 0.0)
+                self.assertAlmostEqual(diff_y, 0.0)
+                self.assertAlmostEqual(diff_z, 1.0)
+            elif abs(yaw - (np.pi / 2.0)) < heading_tol: # 90 degrees on z-axis; heading north
+                self.assertAlmostEqual(diff_x, 0.0)
+                self.assertAlmostEqual(diff_y, 1.0)
+                self.assertAlmostEqual(diff_z, 0.0)
+            elif ( # 180 degrees on z-axis; heading west
+                abs(yaw + np.pi) < heading_tol
+                or abs(yaw - np.pi) < heading_tol
+                or abs(pitch + np.pi) < heading_tol
+                or abs(pitch - np.pi) < heading_tol
+            ):
+                self.assertAlmostEqual(diff_x, -1.0)
+                self.assertAlmostEqual(diff_y, 0.0)
+                self.assertAlmostEqual(diff_z, 0.0)
+            elif abs(yaw + (np.pi / 2.0)) < heading_tol: # 270 degrees on z-axis; heading south
+                self.assertAlmostEqual(diff_x, 0.0)
+                self.assertAlmostEqual(diff_y, -1.0)
+                self.assertAlmostEqual(diff_z, 0.0)
+            elif (abs(yaw) < heading_tol) or (abs(pitch) < heading_tol): # 0 degrees on z-axis; heading east
+                self.assertAlmostEqual(diff_x, 1.0)
+                self.assertAlmostEqual(diff_y, 0.0)
+                self.assertAlmostEqual(diff_z, 0.0)
+            else:
+                raise AssertionError(f"Unhandled heading: {self.heading}")
                 
         start_pose = SE3Pose.by_point_and_rotation(Point3(0.0, 0.0, 0.0, "world"), Rot3(0.0, 0.0, 0.0, "", "world"), "", "world")
         range_model = ConstGaussRangeSensor(
@@ -136,6 +183,8 @@ class TestSimulator(unittest.TestCase):
             covariance=np.diag([0.1, 0.1, 0.1, 0.1, 0.1, 0.1]),
         )
         robot = Robot3("A", start_pose, range_model, odometry_model, loop_closure_model)
+
+        seed_cnt = 256
         man_env = ManhattanWorld(
             dim=DIM.THREE,
             grid_vertices_shape=(30, 30, 30),
@@ -181,6 +230,8 @@ class TestSimulator(unittest.TestCase):
                 move_transform, True
             )
 
+            new_pose = robot.pose
+
             # check that the robot moved correctly
             check_rot_is_manhattan(robot.pose)
 
@@ -192,6 +243,12 @@ class TestSimulator(unittest.TestCase):
             is_yaw_nonzero = not math.isclose(abs(yaw), 0.0, abs_tol=tol)
             self.assertTrue(not (is_pitch_nonzero and is_yaw_nonzero))
 
+            print("Previous pose: " + str(prev_pose))
+            print("Next pose: " + str(new_pose))
+            print(new_pose.rot.matrix)
+
+            # check that bearing in world frame corresponds to correct one-vertex movement
+            check_correct_bearing_and_movement(prev_pose, new_pose, tol)
 
             print("New robot pose: " + str(robot.pose))
             print()

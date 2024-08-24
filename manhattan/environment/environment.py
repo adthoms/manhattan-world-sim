@@ -633,13 +633,16 @@ class ManhattanWorld:
             z_sample = np.random.choice(self._z_coords[sampleable_z_vals])
 
             # pick a rotation from 0 to 3/2 pi
-            rotation_sample = np.random.choice(np.linspace(0, (3 / 2) * np.pi, num=4))
+            pitch_sample = np.random.choice(np.linspace(0, (3 / 2) * np.pi, num=4))
+            yaw_sample = np.random.choice(np.linspace(0, (3 / 2) * np.pi, num=4))
 
             return SE3Pose(
                 x_sample,
                 y_sample,
                 z_sample,
-                rotation_sample,
+                0.0,
+                pitch_sample,
+                yaw_sample,
                 local_frame=local_frame,
                 base_frame="world",
             )
@@ -997,7 +1000,6 @@ class ManhattanWorld:
     ####### visualization #############
 
     def plot_environment(self, ax: Axes):
-        # TODO: Extend to 3D domain
 
         if (self.dim == DIM.TWO):
             assert self._robot_feasibility.shape == (self._num_x_pts, self._num_y_pts)
@@ -1042,63 +1044,6 @@ class ManhattanWorld:
                 self._num_z_pts,
             )
 
-            """# get rows and cols that the robot is allowed to travel on
-            x_pts = np.arange(self._num_x_pts)
-            valid_x = x_pts[x_pts % self._x_steps_to_intersection == 0]
-            valid_x = self._scale * valid_x
-
-            y_pts = np.arange(self._num_y_pts)
-            valid_y = y_pts[y_pts % self._y_steps_to_intersection == 0]
-            valid_y = self._scale * valid_y
-
-            z_pts = np.arange(self._num_z_pts)
-            valid_z = z_pts[z_pts % self._z_steps_to_intersection == 0]
-            valid_z = self._scale * valid_z
-
-            # the bounds of the valid x and y values
-            max_x = np.max(valid_x)
-            min_x = np.min(valid_x)
-            max_y = np.max(valid_y)
-            min_y = np.min(valid_y)
-            max_z = np.max(valid_z)
-            min_z = np.min(valid_z)
-
-            # plot the travelable rows and columns
-            # ax.vlines(valid_x, min_y, max_y)
-            # ax.hlines(valid_y, min_x, max_x)
-            # ax.
-            ax.set_xlim(min_x, max_x)
-            ax.set_ylim(min_y, max_y)
-            ax.set_zlim(min_z, max_z)
-
-            for i in range(self._num_x_pts):
-                for j in range(self._num_y_pts):
-                    for k in range(self._num_z_pts):
-
-                        # the robot should not be traveling on these locations
-                        if (
-                            i % self._x_steps_to_intersection != 0
-                            and j % self._y_steps_to_intersection != 0
-                            and k % self._z_steps_to_intersection != 0
-                        ):
-                            continue
-
-                        if self._robot_feasibility[i, j, k]:
-                            ax.plot(
-                                self._xv[i, j, k],
-                                self._yv[i, j, k],
-                                self._zv[i, j, k],
-                                "ro",
-                                markersize=3,
-                            )
-                        else:
-                            ax.plot(
-                                self._xv[i, j, k],
-                                self._yv[i, j, k],
-                                self._zv[i, j, k],
-                                "go",
-                                markersize=3,
-                            )"""
             # get rows and cols that the robot is allowed to travel on
             x_pts = np.arange(self._num_x_pts)
             valid_x = x_pts[x_pts % self._x_steps_to_intersection == 0]

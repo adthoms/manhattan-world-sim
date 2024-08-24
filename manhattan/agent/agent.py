@@ -12,6 +12,8 @@ from manhattan.measurement.loop_closure import LoopClosure, LoopClosure2, LoopCl
 from manhattan.geometry.Elements import Point, SEPose, Point2, SE2Pose, Point3, SE3Pose
 
 
+Z_VALUE_COLORS = ["b", "g", "c", "m", "y", "k"]
+
 class Agent:
     """
     This class represents a general agent. In our simulator this is either a
@@ -379,15 +381,12 @@ class Robot3(Robot):
     def plot(self) -> None:
         """Plots the robot's groundtruth position"""
 
-        # color intensity will correspond to the z value
-        colors = ["b", "g", "c", "m", "y", "k", "w"]
-
         cur_position = self.position
 
         roll, pitch, yaw = self.heading
 
-        print(self.pose)
-        cur_color = colors[int(round(cur_position.z)) % len(colors)]
+        print("Plotting: " + str(self.pose))
+        cur_color = Z_VALUE_COLORS[int(round(cur_position.z)) % len(Z_VALUE_COLORS)]
 
         heading_tol = 1e-8
         if abs(pitch - (np.pi / 2.0)) < heading_tol: # 90 degrees on y-axis; heading "down"
@@ -399,6 +398,7 @@ class Robot3(Robot):
         elif ( # 180 degrees on z-axis; heading west
             abs(yaw + np.pi) < heading_tol
             or abs(yaw - np.pi) < heading_tol
+            or abs(pitch + np.pi) < heading_tol
             or abs(pitch - np.pi) < heading_tol
         ):
             return plt.plot(cur_position.x, cur_position.y, f"{cur_color}<", markersize=10)
@@ -469,4 +469,5 @@ class Beacon3(Beacon):
         cur_position = self.position
         # plt.axes(projection='3d')
         # return plt.plot(cur_position.x, cur_position.y, cur_position.z, "g*", markersize=10)
-        return plt.plot(cur_position.x, cur_position.y, "g*", markersize=10)
+        cur_color = Z_VALUE_COLORS[int(round(cur_position.z)) % len(Z_VALUE_COLORS)]
+        return plt.plot(cur_position.x, cur_position.y, f"{cur_color}*", markersize=10)

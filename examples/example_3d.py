@@ -13,18 +13,18 @@ from manhattan.simulator.simulator import ManhattanSimulator, SimulationParams
 import matplotlib.animation as animation
 
 show_animation = True
-num_beacons = 1
+num_beacons = 15
 grid_len = 30
 range_prob = 0.25
 dist_stddev = 0.1
 pos_stddev = 0.1
 theta_stddev = 0.1
 seed_cnt = 256
-num_timesteps = 20
+num_timesteps = 15
 
 sim_args = SimulationParams(
     dimension=DIM.THREE,
-    num_robots=1,
+    num_robots=4,
     num_beacons=num_beacons,
     grid_shape=(grid_len, grid_len, grid_len),
     z_steps_to_intersection=3, # NEED TO ASSERT THIS
@@ -65,9 +65,10 @@ for i in range(num_timesteps):
 
     if show_animation:
         # print("Plotting...")
+        print(f'plot{i}.jpg')
         sim.plot_robot_states()
         sim.show_plot(animation=True)
-        plt.savefig(f'seq3/plot{i}.jpg')
+        plt.savefig(f'seq3_multi_robot/plot{i}.jpg')
         print()
 
 plt.savefig('plot.gif')

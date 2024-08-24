@@ -791,6 +791,15 @@ class Rot3(Rot):
         roll, pitch, yaw = SO3.exp(vector).to_rpy()
         return cls(roll, pitch, yaw, local_frame, base_frame)
 
+    @classmethod
+    def by_quaternion(
+        cls, quaternion: np.ndarray, local_frame: str, base_frame: str, ordering: str = "wxyz",
+    ) -> "Rot3":
+        assert isinstance(quaternion, np.ndarray)
+        assert len(quaternion) == 4
+        roll, pitch, yaw = SO3.from_quaternion(quaternion, ordering=ordering).to_rpy()
+        return cls(roll, pitch, yaw, local_frame, base_frame)
+
     def copy(self) -> "Rot3":
         return Rot3(self.roll, self.pitch, self.yaw, self.local_frame, self.base_frame)
 
@@ -811,15 +820,14 @@ class Rot3(Rot):
     def bearing_to_local_frame_point(self, local_pt: Point3) -> Tuple[float, float]:
         assert isinstance(local_pt, Point3)
         assert self.local_frame == local_pt.frame
-        return math.atan2(local_pt.y, local_pt.x), math.atan2(local_pt.z, local_pt.x)
+        return atan2_fpe(local_pt.y, local_pt.x), atan2_fpe(-local_pt.z, math.sqrt(local_pt.y**2 + local_pt.x**2))
 
     def bearing_to_base_frame_point(self, base_frame_pt: Point3) -> Tuple[float, float]:
         assert isinstance(base_frame_pt, Point3)
         assert self.base_frame == base_frame_pt.frame
         local_pt = self.unrotate_point(base_frame_pt)
 
-        # return atan2_fpe(local_pt.y, math.sqrt(local_pt.z**2 + local_pt.x**2)), atan2_fpe(local_pt.z, local_pt.x)
-        return atan2_fpe(local_pt.y, local_pt.x), atan2_fpe(local_pt.z, math.sqrt(local_pt.y**2 + local_pt.x**2))
+        return atan2_fpe(local_pt.y, local_pt.x), atan2_fpe(-local_pt.z, math.sqrt(local_pt.y**2 + local_pt.x**2))
 
     @overload
     def __mul__(self, other: "Rot3") -> "Rot3":
