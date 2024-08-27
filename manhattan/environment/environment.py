@@ -386,9 +386,6 @@ class ManhattanWorld:
 
             # connectivity is based on whether we are at a corner or not
             # i is on the y-axis, j is on the x-axis, k is on the z-axis
-            print("i: " + str(i) + " x steps: " + str(self._x_steps_to_intersection))
-            print("j: " + str(j) + " y steps: " + str(self._y_steps_to_intersection))
-            print("k: " + str(k) + " z steps: " + str(self._z_steps_to_intersection))
 
             if (i % self._x_steps_to_intersection == 0) and (j % self._y_steps_to_intersection == 0):
                 cur_candidates = [(i, j, k - 1), (i, j, k + 1)]
@@ -400,12 +397,10 @@ class ManhattanWorld:
                 cur_candidates = [(i, j - 1, k), (i, j + 1, k)]
                 _add_vertices_if_not_present(cur_candidates)
                 
-            print("Candidate vertices: " + str(candidate_vertices))
             # prune all vertices that are out of bounds
             vertices_in_bound = [
                 v for v in candidate_vertices if self.vertex_is_in_bounds(v)
             ]
-            print("Vertices in bound: " + str(vertices_in_bound))
             return vertices_in_bound
 
     def get_neighboring_robot_vertices(
@@ -477,9 +472,6 @@ class ManhattanWorld:
             ]
             assert len(neighboring_feasible_pts) <= 4
 
-            print("Printing not behind vertices")
-            print("Robot: " + str(robot_pose.point) + " " + str(robot_pose.rot))
-            print(neighboring_feasible_vertices)
             not_behind_pts = []
             for pt in neighboring_feasible_pts:
                 distance, bearing = robot_pose.range_and_bearing_to_point(pt)
@@ -493,8 +485,6 @@ class ManhattanWorld:
 
             # get neighboring vertices in the robot feasible space
             neighboring_feasible_vertices = self.get_neighboring_robot_vertices(robot_vert)
-            print("Printing neighboring vertices")
-            print(neighboring_feasible_vertices)
             assert self.check_vertex_list_valid(neighboring_feasible_vertices)
 
             # convert vertices to points
@@ -503,10 +493,6 @@ class ManhattanWorld:
             ]
 
             assert len(neighboring_feasible_pts) <= 6
-            
-            print("Printing not behind vertices")
-            print("Robot: " + str(robot_pose.point) + " " + str(robot_pose.rot))
-            print(neighboring_feasible_vertices)
             
             not_behind_pts = []
             for pt in neighboring_feasible_pts:
@@ -543,11 +529,8 @@ class ManhattanWorld:
             self.vertex2point(v) for v in neighboring_feasible_vertices
         ]
 
-        # print(robot_pose.point)
-
         for pt in neighboring_feasible_pts:
             distance, bearing = robot_pose.range_and_bearing_to_point(pt)
-            print(pt)
 
             if (self.dim == DIM.TWO):
                 # 2D: Any bearing between 90 and 270 degrees is behind the robot
@@ -853,12 +836,10 @@ class ManhattanWorld:
         if (self.dim == DIM.TWO):
             rotation_is_good = abs(pose.theta % (np.pi / 2.0)) < self._tol
             if not rotation_is_good:
-                print(f"Rotation is {pose.theta} and not a multiple of pi/2")
                 return False
 
             vert = self.coordinate2vertex(pose.x, pose.y)
             if not self.vertex_is_robot_feasible(vert):
-                print(f"Coordinate {pose.x}, {pose.y} from vertex {vert} is not feasible")
                 return False
         else:
             roll, pitch, yaw = pose.rot.angles

@@ -748,8 +748,6 @@ class ManhattanSimulator:
             if len(possible_moves) == 0:
                 possible_moves.append(self._env.get_vertex_behind_robot(robot))
 
-            # print(possible_moves)
-
             if (self._dim == DIM.TWO):
                 # randomly select a move from the list
                 move = choice(possible_moves)
@@ -793,12 +791,8 @@ class ManhattanSimulator:
                 move_pt: Point3 = move[0]
                 roll, pitch, yaw = move[1]
 
-                print("Chosen move: " + str(move_pt))
-
                 # get the move in the robot local frame
                 move_pt_local = robot.pose.transform_base_point_to_local(move_pt)
-
-                print("Chosen move local: " + str(move_pt_local))
 
                 # frame name represents robot and timestep
                 move_frame_name = f"{robot.name}{robot.timestep+1}"

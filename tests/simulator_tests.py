@@ -193,14 +193,14 @@ class TestSimulator(unittest.TestCase):
             x_steps_to_intersection=2,
             cell_scale=1.0,
         )
-        num_iters = 500
+        num_iters = 2000
         tol = 1e-2
 
         for _ in range(num_iters):
             # Doesn't account for when robot has no more moves (must include vertices not behind robot)
             possible_moves = man_env.get_neighboring_robot_vertices_not_behind_robot(robot)
             for pt, rot in possible_moves:
-                print(str(pt) + "   ---->   " + str(rot))
+                # print(str(pt) + "   ---->   " + str(rot))
                 self.assertFalse(bearing_is_behind_robot(rot[1], rot[2], tol))
             next_trans = choice(possible_moves)
 
@@ -209,8 +209,8 @@ class TestSimulator(unittest.TestCase):
             move_frame_name = f"{robot.name}{robot.timestep+1}"
             move_pt_local = robot.pose.transform_base_point_to_local(move_pt)
 
-            print("Chosen move: " + str(move_pt))
-            print("Chosen move local: " + str(move_pt_local))
+            # print("Chosen move: " + str(move_pt))
+            # print("Chosen move local: " + str(move_pt_local))
 
             move_transform = SE3Pose(
                 move_pt_local.x,
@@ -243,15 +243,15 @@ class TestSimulator(unittest.TestCase):
             is_yaw_nonzero = not math.isclose(abs(yaw), 0.0, abs_tol=tol)
             self.assertTrue(not (is_pitch_nonzero and is_yaw_nonzero))
 
-            print("Previous pose: " + str(prev_pose))
-            print("Next pose: " + str(new_pose))
-            print(new_pose.rot.matrix)
+            # print("Previous pose: " + str(prev_pose))
+            # print("Next pose: " + str(new_pose))
+            # print(new_pose.rot.matrix)
 
             # check that bearing in world frame corresponds to correct one-vertex movement
             check_correct_bearing_and_movement(prev_pose, new_pose, tol)
 
-            print("New robot pose: " + str(robot.pose))
-            print()
+            # print("New robot pose: " + str(robot.pose))
+            # print()
 
 
 if __name__ == "__main__":

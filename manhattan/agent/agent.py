@@ -271,8 +271,6 @@ class Robot2(Robot):
 
         cur_position = self.position
 
-        print(self.pose)
-
         heading_tol = 1e-8
         if abs(self.heading) < heading_tol:
             return plt.plot(cur_position.x, cur_position.y, "b>", markersize=10)
@@ -356,13 +354,9 @@ class Robot3(Robot):
 
         assert isinstance(transform, SE3Pose)
 
-        print(f"Roll: {transform.rot.roll}, Pitch: {transform.rot.pitch}, Yaw: {transform.rot.yaw}")
-
         # move the robot
         self._pose = self._pose * transform
         self._increment_timestep()
-
-        print("Moving: " + str(transform))
 
         # if gt measure then just fake the noise and return the true transform
         # as the measurement
@@ -385,7 +379,6 @@ class Robot3(Robot):
 
         roll, pitch, yaw = self.heading
 
-        print("Plotting: " + str(self.pose))
         cur_color = Z_VALUE_COLORS[int(round(cur_position.z)) % len(Z_VALUE_COLORS)]
 
         heading_tol = 1e-8

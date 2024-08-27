@@ -1043,8 +1043,6 @@ class SEPose(ABC):
             Union[Tuple[float, float], Tuple[float, Tuple[float, float]]]: (range, bearing).
         """
         check_compatible_types(self, point)
-        # print(self.point)
-        # print(point)
         diff = point - self.point
         dist = diff.norm
         bearing = self.rot.bearing_to_base_frame_point(diff)
