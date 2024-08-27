@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 sys.path.insert(0, os.path.abspath(".."))
 
-from manhattan.simulator.simulator import ManhattanSimulator, SimulationParams
+from manhattan.simulator.simulator import ManhattanSimulator, SimulationParams2
 
 import numpy as np
 
@@ -15,7 +15,7 @@ np.random.seed(999)
 pr = cProfile.Profile()
 pr.enable()
 
-sim_args = SimulationParams(
+sim_args = SimulationParams2(
     grid_shape=(20, 20),
     y_steps_to_intersection=2,
     x_steps_to_intersection=2,

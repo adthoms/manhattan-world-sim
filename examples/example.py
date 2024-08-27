@@ -6,11 +6,11 @@ from matplotlib import pyplot as plt
 
 sys.path.insert(0, os.path.abspath(".."))
 
-from manhattan.simulator.simulator import ManhattanSimulator, SimulationParams
+from manhattan.simulator.simulator import ManhattanSimulator, SimulationParams2
 
 show_animation = True
 num_beacons = 1
-grid_len = 30
+grid_len = 8
 range_prob = 0.25
 dist_stddev = 0.1
 pos_stddev = 0.1
@@ -18,12 +18,14 @@ theta_stddev = 0.1
 seed_cnt = 0
 num_timesteps = 10
 
-sim_args = SimulationParams(
-    num_robots=1,
+OUTPUT_DIR = "sim2"
+
+sim_args = SimulationParams2(
+    num_robots=2,
     num_beacons=num_beacons,
     grid_shape=(grid_len, grid_len),
-    y_steps_to_intersection=2,
-    x_steps_to_intersection=3,
+    y_steps_to_intersection=4,
+    x_steps_to_intersection=4,
     cell_scale=1.0,
     range_sensing_prob=range_prob,
     range_sensing_radius=100.0,
@@ -52,6 +54,9 @@ if show_animation:
     sim.plot_grid()
     sim.plot_beacons()
 
+if (not os.path.isdir(OUTPUT_DIR)):
+    os.makedirs(OUTPUT_DIR)
+
 for i in range(num_timesteps):
     sim.random_step()
 
@@ -60,7 +65,7 @@ for i in range(num_timesteps):
         sim.plot_robot_states()
         sim.show_plot(animation=True)
 
-        plt.savefig(f'seq2/plot{i}.jpg')
+        plt.savefig(f'{OUTPUT_DIR}/plot{i}.jpg')
 
 if show_animation:
     sim.close_plot()

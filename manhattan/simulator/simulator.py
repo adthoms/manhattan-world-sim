@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, List, Set
+from typing import Optional, Tuple, List, Set, Union
 import numpy as np
 import matplotlib.pyplot as plt  # type: ignore
 import matplotlib  # type: ignore
@@ -70,10 +70,10 @@ from py_factor_graph.priors import PosePrior2D, LandmarkPrior2D, PosePrior3D, La
 
 
 @attr.s(frozen=True, auto_attribs=True)
-class SimulationParams:
-    """
+class SimulationParams2:
+    """Simulation parameters for a 2D Manhattan world.
+
     Args:
-        dimension (int): the dimension of the simulation (2 or 3)
         num_robots (int): Number of robots to simulate
         num_beacons (int): Number of beacons to simulate
         grid_shape (Tuple[int, int]): (rows, cols) the shape of the manhattan
@@ -123,7 +123,106 @@ class SimulationParams:
             n poses from LC candidates
     """
 
-    dimension: DIM = attr.ib(default=DIM.TWO, validator=dimension_validator)
+    dimension: DIM = DIM.TWO
+    num_robots: int = attr.ib(default=1, validator=positive_int_validator)
+    num_beacons: int = attr.ib(default=0, validator=positive_int_validator)
+    grid_shape: Tuple[int, int] = attr.ib(
+        default=None, validator=positive_int_tuple_validator
+    )
+    y_steps_to_intersection: int = attr.ib(default=1, validator=positive_int_validator)
+    x_steps_to_intersection: int = attr.ib(default=1, validator=positive_int_validator)
+    cell_scale: float = attr.ib(default=1.0, validator=positive_float_validator)
+    range_sensing_prob: float = attr.ib(default=0.5, validator=probability_validator)
+    range_sensing_radius: float = attr.ib(
+        default=1.0, validator=positive_float_validator
+    )
+    false_range_data_association_prob: float = attr.ib(
+        default=0.2, validator=probability_validator
+    )
+    outlier_prob: float = attr.ib(default=0.1, validator=probability_validator)
+    max_num_loop_closures: int = attr.ib(default=2, validator=positive_int_validator)
+    loop_closure_prob: float = attr.ib(default=0.5, validator=probability_validator)
+    loop_closure_radius: float = attr.ib(default=10, validator=positive_float_validator)
+    false_loop_closure_prob: float = attr.ib(
+        default=0.2, validator=probability_validator
+    )
+    range_stddev: float = attr.ib(default=5, validator=positive_float_validator)
+    odom_x_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
+    odom_y_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
+    odom_theta_stddev: float = attr.ib(default=1e-2, validator=positive_float_validator)
+    loop_x_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
+    loop_y_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
+    loop_theta_stddev: float = attr.ib(default=1e-2, validator=positive_float_validator)
+    seed_num: int = attr.ib(default=0, validator=positive_int_validator)
+    debug_mode: bool = attr.ib(default=False)
+    groundtruth_measurements: bool = attr.ib(default=False)
+    no_loop_pose_idx: List[int] = attr.ib(default=[])
+    exclude_last_n_poses_for_loop_closure: int = attr.ib(
+        default=2, validator=positive_int_validator
+    )
+    exclude_cur_robot_for_loop_closure: bool = attr.ib(default=False)
+
+@attr.s(frozen=True, auto_attribs=True)
+class SimulationParams3:
+    """Simulation parameters for a 3D Manhattan world.
+
+    Args:
+        num_robots (int): Number of robots to simulate
+        num_beacons (int): Number of beacons to simulate
+        grid_shape (Tuple[int, int]): (rows, cols) the shape of the manhattan
+            world
+        z_steps_to_intersection (int): how much height between each intersection
+            where the robot can turn
+        y_steps_to_intersection (int): how many rows between each intersection
+            where the robot can turn
+        x_steps_to_intersection (int): how many columns between each
+            intersection where the robot can turn
+        cell_scale (float): the length of the sides of the cells in the
+            manhattan world
+        range_sensing_radius (float): the radius of the sensor
+        range_sensing_prob (float): the probability of range sensing
+        false_range_data_association_prob (float): the probability that the
+            data association is incorrect
+        outlier_prob (float): the probability that the measurement is an
+            outlier
+        max_num_loop_closures (int): the maximum number of loop closures to
+            allow in a simulation
+        loop_closure_prob (float): the probability that a loop closure is
+            detected
+        loop_closure_radius (float): the radius of the circle that is used
+            to try to detect loop closures
+        false_loop_closure_prob (float): the probability that the data
+            association is incorrect for a given loop closure
+        range_stddev (float): the standard deviation of the gaussian noise
+            added to the range measurements
+        odom_x_stddev (float): the standard deviation of the gaussian noise
+            added to the x position of the odometry
+        odom_y_stddev (float): the standard deviation of the gaussian noise
+            added to the y position of the odometry
+        odom_z_stddev (float): the standard deviation of the gaussian noise
+            added to the z position of the odometry
+        odom_rpy_stddev (float): the standard deviation of the gaussian
+            noise added to the roll, pitch, and yaw of the odometry
+        loop_x_stddev (float): the standard deviation of the gaussian noise
+            added to the x position of the loop closures
+        loop_y_stddev (float): the standard deviation of the gaussian noise
+            added to the y position of the loop closures
+        loop_z_stddev (float): the standard deviation of the gaussian noise
+            added to the z position of the loop closures
+        loop_rpy_stddev (float): the standard deviation of the gaussian
+            noise added to the roll, pitch, and yaw of the loop closures
+        seed_num (int): the seed for the random number generator
+        debug_mode (bool): whether to print debug information and run debugging
+            checks
+        groundtruth_measurements (bool): whether to use ground truth as the
+            measured values regardless of noise model
+        no_loop_pose_idx (List[int]): array of pose indices for which no loop
+            closures will be generated
+        exclude_last_n_poses_for_loop_closure (int): default is 2; exclude last
+            n poses from LC candidates
+    """
+
+    dimension: DIM = DIM.THREE
     num_robots: int = attr.ib(default=1, validator=positive_int_validator)
     num_beacons: int = attr.ib(default=0, validator=positive_int_validator)
     grid_shape: Tuple[int, int] = attr.ib(
@@ -151,12 +250,10 @@ class SimulationParams:
     odom_x_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
     odom_y_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
     odom_z_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
-    odom_theta_stddev: float = attr.ib(default=1e-2, validator=positive_float_validator)
     odom_rpy_stddev: float = attr.ib(default=(1e-2, 1e-2, 1e-2), validator=rpy_stddev_validator)
     loop_x_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
     loop_y_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
     loop_z_stddev: float = attr.ib(default=1e-1, validator=positive_float_validator)
-    loop_theta_stddev: float = attr.ib(default=1e-2, validator=positive_float_validator)
     loop_rpy_stddev: float = attr.ib(default=(1e-2, 1e-2, 1e-2), validator=rpy_stddev_validator)
     seed_num: int = attr.ib(default=0, validator=positive_int_validator)
     debug_mode: bool = attr.ib(default=False)
@@ -167,6 +264,7 @@ class SimulationParams:
     )
     exclude_cur_robot_for_loop_closure: bool = attr.ib(default=False)
 
+SIM_PARAM_TYPES = Union[SimulationParams2, SimulationParams3]
 
 class ManhattanSimulator:
     """This class defines a simulator using Manhattan world-like environments.
@@ -175,7 +273,7 @@ class ManhattanSimulator:
     """
 
     @staticmethod
-    def check_simulation_params(sim_params: SimulationParams) -> None:
+    def check_simulation_params(sim_params: SIM_PARAM_TYPES) -> None:
         """Checks the validity of the provided simulation parameters.
 
         Args:
@@ -254,15 +352,17 @@ class ManhattanSimulator:
         assert 0 < sim_params.range_stddev
         assert 0 < sim_params.odom_x_stddev
         assert 0 < sim_params.odom_y_stddev
-        assert 0 < sim_params.odom_theta_stddev
         assert 0 < sim_params.loop_x_stddev
         assert 0 < sim_params.loop_y_stddev
-        assert 0 < sim_params.loop_theta_stddev
 
+        if (sim_params.dimension == DIM.TWO):
+            assert 0 < sim_params.odom_theta_stddev
+            assert 0 < sim_params.loop_theta_stddev
         if (sim_params.dimension == DIM.THREE):
             assert 0 < sim_params.odom_z_stddev
             assert 0 < sim_params.loop_z_stddev
             assert all(0 < i for i in sim_params.odom_rpy_stddev)
+            assert all(0 < i for i in sim_params.loop_rpy_stddev)
 
     def check_simulation_state(
         self,
@@ -278,7 +378,7 @@ class ManhattanSimulator:
         for true_pose_chain in self._groundtruth_poses:
             assert len(true_pose_chain) == (self.timestep) + 1
 
-    def __init__(self, sim_params: SimulationParams) -> None:
+    def __init__(self, sim_params: SIM_PARAM_TYPES) -> None:
         # run a bunch of checks to make sure input is valid
         self.check_simulation_params(sim_params)
         np.random.seed(sim_params.seed_num)
@@ -286,14 +386,24 @@ class ManhattanSimulator:
         if sim_params.groundtruth_measurements:
             logger.warning("Groundtruth measurements are enabled.")
 
-        self._env = ManhattanWorld(
-            dim=sim_params.dimension,
-            grid_vertices_shape=sim_params.grid_shape,
-            z_steps_to_intersection=sim_params.z_steps_to_intersection,
-            y_steps_to_intersection=sim_params.y_steps_to_intersection,
-            x_steps_to_intersection=sim_params.x_steps_to_intersection,
-            cell_scale=sim_params.cell_scale,
-        )
+        if sim_params.dimension == DIM.TWO:
+            self._env = ManhattanWorld(
+                dim=sim_params.dimension,
+                grid_vertices_shape=sim_params.grid_shape,
+                y_steps_to_intersection=sim_params.y_steps_to_intersection,
+                x_steps_to_intersection=sim_params.x_steps_to_intersection,
+                cell_scale=sim_params.cell_scale,
+            )
+        else:
+            self._env = ManhattanWorld(
+                dim=sim_params.dimension,
+                grid_vertices_shape=sim_params.grid_shape,
+                z_steps_to_intersection=sim_params.z_steps_to_intersection,
+                y_steps_to_intersection=sim_params.y_steps_to_intersection,
+                x_steps_to_intersection=sim_params.x_steps_to_intersection,
+                cell_scale=sim_params.cell_scale,
+            )
+        
         self._dim = sim_params.dimension
         self._sim_params = sim_params
         self._robots: List[Robot] = []
@@ -419,7 +529,7 @@ class ManhattanSimulator:
         return len(self._beacons)
 
     @property
-    def sim_params(self) -> SimulationParams:
+    def sim_params(self) -> SIM_PARAM_TYPES:
         return self._sim_params
 
     ###### Simulation interface methods ######

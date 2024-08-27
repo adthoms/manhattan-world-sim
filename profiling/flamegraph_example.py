@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 sys.path.insert(0, os.path.abspath(".."))
 
-from manhattan.simulator.simulator import ManhattanSimulator, SimulationParams
+from manhattan.simulator.simulator import ManhattanSimulator, SimulationParams2
 
 import numpy as np
 
@@ -17,7 +17,7 @@ cwd = os.getcwd()
 fg_log_path = f"{cwd}/flamegraph.log"
 fg_thread = flamegraph.start_profile_thread(fd=open(fg_log_path, "w"))
 
-sim_args = SimulationParams(
+sim_args = SimulationParams2(
     grid_shape=(20, 20),
     y_steps_to_intersection=2,
     x_steps_to_intersection=2,

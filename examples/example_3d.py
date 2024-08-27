@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 sys.path.insert(0, os.path.abspath(".."))
 
 from manhattan.geometry.Elements import DIM
-from manhattan.simulator.simulator import ManhattanSimulator, SimulationParams
+from manhattan.simulator.simulator import ManhattanSimulator, SimulationParams3
 
 import matplotlib.animation as animation
 
@@ -22,14 +22,15 @@ theta_stddev = 0.1
 seed_cnt = 512
 num_timesteps = 25
 
-sim_args = SimulationParams(
-    dimension=DIM.THREE,
+OUTPUT_DIR = "sim3"
+
+sim_args = SimulationParams3(
     num_robots=2,
     num_beacons=num_beacons,
     grid_shape=(grid_len, grid_len, grid_len),
-    z_steps_to_intersection=4, # NEED TO ASSERT THIS
-    y_steps_to_intersection=4,
-    x_steps_to_intersection=4,
+    z_steps_to_intersection=2,
+    y_steps_to_intersection=2,
+    x_steps_to_intersection=2,
     cell_scale=1.0,
     range_sensing_prob=range_prob,
     range_sensing_radius=100.0,
@@ -60,18 +61,16 @@ if show_animation:
     sim.plot_grid()
     sim.plot_beacons()
 
+if (not os.path.isdir(OUTPUT_DIR)):
+    os.makedirs(OUTPUT_DIR)
+
 for i in range(num_timesteps):
     sim.random_step()
 
     if show_animation:
-        # print("Plotting...")
-        print(f'plot{i}.jpg')
         sim.plot_robot_states()
         sim.show_plot(animation=True)
-        plt.savefig(f'seq3_multi_robot/plot{i}.jpg')
-        print()
-
-plt.savefig('plot.gif')
+        plt.savefig(f'{OUTPUT_DIR}/plot{i}.jpg')
 
 if show_animation:
     sim.close_plot()

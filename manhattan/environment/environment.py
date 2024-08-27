@@ -547,7 +547,7 @@ class ManhattanWorld:
         Note: this will not sample any points on the edge of the grid
 
         Returns:
-            SE2Pose: a random, feasible robot pose
+            SEPose: a random, feasible robot pose
         """
 
         if (self.dim == DIM.TWO):
@@ -597,6 +597,7 @@ class ManhattanWorld:
             cornered_x_vals = np.zeros(feasible_x_vals.shape).astype(bool)
             cornered_y_vals = np.zeros(feasible_y_vals.shape).astype(bool)
             cornered_z_vals = np.zeros(feasible_z_vals.shape).astype(bool)
+
             for i in range(len(cornered_x_vals)):
                 if i % self._x_steps_to_intersection == 0:
                     cornered_x_vals[i] = True
